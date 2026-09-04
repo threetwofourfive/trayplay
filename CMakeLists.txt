@@ -1,14 +1,32 @@
 cmake_minimum_required(VERSION 3.16)
+
+# Automatically detect and use bundled vcpkg submodule if not explicitly specified
+if(NOT DEFINED CMAKE_TOOLCHAIN_FILE AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake")
+    set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake" CACHE STRING "Vcpkg toolchain")
+endif()
+
+# Auto-configure MinGW triplet on Windows when using GCC
+if(WIN32 AND MINGW)
+    if(NOT DEFINED VCPKG_TARGET_TRIPLET)
+        set(VCPKG_TARGET_TRIPLET "x64-mingw-dynamic" CACHE STRING "Vcpkg target triplet for MinGW")
+    endif()
+endif()
+
+if(POLICY CMP0167)
+    cmake_policy(SET CMP0167 NEW)
+endif()
+
 project(TrayConsole LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ------------------------------------------------------------------------------
-# Core Dependencies (Optional for skeleton build)
+# Core Dependencies (vcpkg will install these automatically)
 # ------------------------------------------------------------------------------
-find_package(Boost QUIET COMPONENTS system thread)
-find_package(SDL2 QUIET)
+find_package(Boost REQUIRED COMPONENTS system thread)
+find_package(SDL2 CONFIG REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 # ------------------------------------------------------------------------------
 # Core Daemon
@@ -16,17 +34,16 @@ find_package(SDL2 QUIET)
 option(BUILD_CORE "Build the core daemon" ON)
 
 if(BUILD_CORE)
-    add_executable(tray-console-daemon
+    add_executable(tray-console-daemon 
         core/main.cpp
     )
     
-    if(Boost_FOUND)
-        target_link_libraries(tray-console-daemon PRIVATE Boost::system Boost::thread)
-    endif()
-    
-    if(SDL2_FOUND)
-        target_link_libraries(tray-console-daemon PRIVATE SDL2::SDL2)
-    endif()
+    target_link_libraries(tray-console-daemon PRIVATE 
+        Boost::system 
+        Boost::thread 
+        SDL2::SDL2 
+        nlohmann_json::nlohmann_json
+    )
 endif()
 
 # ------------------------------------------------------------------------------
