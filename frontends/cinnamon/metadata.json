@@ -1,0 +1,5 @@
+{
+  "uuid": "tray-console-cinnamon@example.com",
+  "name": "Tray Console",
+  "description": "Virtual microconsole in system tray"
+}

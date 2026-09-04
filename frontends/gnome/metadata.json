@@ -1,0 +1,6 @@
+{
+  "uuid": "tray-console@example.com",
+  "name": "Tray Console",
+  "description": "Virtual microconsole in system tray",
+  "shell-version": ["45"]
+}
