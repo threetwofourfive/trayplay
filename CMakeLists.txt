@@ -27,6 +27,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Boost REQUIRED COMPONENTS system thread)
 find_package(SDL2 CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
+find_package(Lua REQUIRED)
+find_package(sol2 CONFIG REQUIRED)
 
 # ------------------------------------------------------------------------------
 # Core Daemon
@@ -36,13 +38,22 @@ option(BUILD_CORE "Build the core daemon" ON)
 if(BUILD_CORE)
     add_executable(tray-console-daemon 
         core/main.cpp
+        core/framebuffer.cpp
+        core/vm.cpp
     )
     
+    target_include_directories(tray-console-daemon PRIVATE 
+        ${CMAKE_CURRENT_SOURCE_DIR}/core
+        ${LUA_INCLUDE_DIR}
+    )
+
     target_link_libraries(tray-console-daemon PRIVATE 
         Boost::system 
         Boost::thread 
         SDL2::SDL2 
         nlohmann_json::nlohmann_json
+        ${LUA_LIBRARIES}
+        sol2::sol2
     )
 endif()
 

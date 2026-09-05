@@ -13,6 +13,8 @@
     "boost-asio",
     "boost-interprocess",
     "boost-thread",
-    "nlohmann-json"
+    "nlohmann-json",
+    "lua",
+    "sol2"
   ]
 }
