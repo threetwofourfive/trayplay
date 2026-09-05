@@ -78,19 +78,27 @@ elseif(UNIX AND NOT APPLE)
     message(STATUS "Configuring for Linux/UNIX...")
     
     # Build options for Linux
-    option(BUILD_FRONTEND_GNOME "Build GNOME extension frontend" OFF)
+    option(BUILD_FRONTEND_GNOME "Build GNOME extension frontend" ON)
     option(BUILD_FRONTEND_KDE "Build KDE Plasma frontend" OFF)
     option(BUILD_FRONTEND_CINNAMON "Build Cinnamon frontend" OFF)
     option(BUILD_FRONTEND_XFCE "Build XFCE frontend" OFF)
     option(BUILD_FRONTEND_WAYBAR "Build Waybar frontend" OFF)
 
-    # GNOME Frontend (Custom Target)
+    # GNOME Frontend (Custom Targets)
     if(BUILD_FRONTEND_GNOME)
         add_custom_target(frontend-gnome ALL
             COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/frontends/gnome
             ${CMAKE_CURRENT_BINARY_DIR}/frontends/gnome
             COMMENT "Copying GNOME frontend files"
+        )
+        
+        # Install extension directly to local user directory
+        add_custom_target(install-gnome-extension
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/frontends/gnome
+            $ENV{HOME}/.local/share/gnome-shell/extensions/trayplay@threetwofourfive.github.io
+            COMMENT "Installing TrayPlay GNOME extension into ~/.local/share/gnome-shell/extensions"
         )
     endif()
 

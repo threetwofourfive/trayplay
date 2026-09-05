@@ -1,0 +1,107 @@
+/* TrayPlay GNOME Extension Stylesheet */
+
+.trayplay-popup-box {
+    padding: 10px 14px 14px 14px;
+}
+
+.trayplay-root-box {
+    spacing: 10px;
+}
+
+.trayplay-header {
+    spacing: 8px;
+    margin-bottom: 2px;
+}
+
+.trayplay-title {
+    font-size: 10pt;
+    font-weight: 800;
+    color: #dfe6e9;
+}
+
+.trayplay-status-badge {
+    font-size: 8pt;
+    font-weight: bold;
+    color: #f1c40f;
+    background-color: rgba(241, 196, 15, 0.15);
+    border-radius: 10px;
+    padding: 2px 8px;
+}
+
+/* Wide Screen / Canvas Field */
+.trayplay-screen-frame {
+    background-color: #0c0e12;
+    border: 2px solid #232731;
+    border-radius: 8px;
+    padding: 4px;
+    box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.9);
+}
+
+.trayplay-screen {
+    width: 420px;
+    height: 236px; /* 16:9 widescreen canvas */
+    background-color: #020304;
+    border-radius: 5px;
+    padding: 12px;
+}
+
+.trayplay-screen-title {
+    font-size: 13pt;
+    font-weight: 900;
+    color: #00ffcc;
+}
+
+.trayplay-screen-status {
+    font-size: 9pt;
+    font-family: monospace;
+    color: #eccc68;
+    margin-top: 14px;
+    font-weight: bold;
+}
+
+.trayplay-screen-info-bar {
+    font-size: 8pt;
+    font-family: monospace;
+    color: #57606f;
+    margin-top: 8px;
+}
+
+/* Controls */
+.trayplay-controls {
+    spacing: 8px;
+    margin-top: 4px;
+}
+
+.trayplay-load-btn {
+    background-color: #2f3542;
+    border: 1px solid #475366;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-weight: bold;
+    color: #ffffff;
+    transition-duration: 120ms;
+}
+
+.trayplay-load-btn:hover {
+    background-color: #3d4657;
+    border-color: #00ffcc;
+    color: #00ffcc;
+}
+
+.trayplay-load-btn:active {
+    background-color: #1e222a;
+}
+
+.trayplay-action-btn {
+    background-color: #242933;
+    border: 1px solid #3d4657;
+    border-radius: 6px;
+    padding: 8px 14px;
+    color: #a4b0be;
+    transition-duration: 120ms;
+}
+
+.trayplay-action-btn:hover {
+    background-color: #2f3542;
+    color: #ffffff;
+}

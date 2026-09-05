@@ -1,6 +1,13 @@
 {
-  "uuid": "tray-console@example.com",
-  "name": "Tray Console",
+  "uuid": "trayplay@threetwofourfive.github.io",
+  "name": "TrayPlay Microconsole",
   "description": "Virtual microconsole in system tray",
-  "shell-version": ["45"]
+  "shell-version": [
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "50"
+  ]
 }
