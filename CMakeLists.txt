@@ -66,12 +66,20 @@ elseif(APPLE)
     option(BUILD_FRONTEND_MACOS "Build macOS frontend" ON)
     
     if(BUILD_FRONTEND_MACOS)
-        # Enable Objective-C++
-        enable_language(OBJCXX)
+        # Enable Swift and configure native macOS bundle
+        enable_language(Swift)
+        set(CMAKE_Swift_LANGUAGE_VERSION 5.0)
         add_executable(frontend-macos MACOSX_BUNDLE
-            frontends/macos/AppDelegate.mm
+            frontends/macos/Main.swift
         )
-        target_link_libraries(frontend-macos PRIVATE "-framework Cocoa" "-framework AppKit")
+        target_link_libraries(frontend-macos PRIVATE 
+            "-framework Cocoa" 
+            "-framework AppKit" 
+            "-framework SwiftUI"
+        )
+        set_target_properties(frontend-macos PROPERTIES
+            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/frontends/macos/Info.plist"
+        )
     endif()
 
 elseif(UNIX AND NOT APPLE)

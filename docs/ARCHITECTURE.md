@@ -28,8 +28,8 @@ Thin, 100% native clients tailored to specific operating systems and desktop env
 - **Waybar:** C++
 
 ### macOS
-- **Stack:** Objective-C++ (`.mm`) + AppKit
-- **Details:** Uses `NSStatusItem` for the tray icon and `NSPopover` for the UI.
+- **Stack:** Swift + SwiftUI
+- **Details:** Uses `NSStatusItem` for the menu bar item and an `NSPopover` hosting native SwiftUI components (`NSHostingController`) with modern materials and SF Symbols.
 
 ### Windows
 - **Stack:** C++/WinRT (or C# WinUI 3 / WPF)
