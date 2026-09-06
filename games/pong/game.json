@@ -1,0 +1,7 @@
+{
+  "title": "Neon Pong",
+  "author": "TrayPlay Studios",
+  "version": "1.0.0",
+  "description": "Classic cyber-pong arcade game running at 60 FPS in TrayPlay",
+  "entry": "main.lua"
+}

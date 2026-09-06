@@ -15,6 +15,7 @@
     "boost-thread",
     "nlohmann-json",
     "lua",
-    "sol2"
+    "sol2",
+    "miniz"
   ]
 }

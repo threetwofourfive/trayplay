@@ -29,6 +29,7 @@ find_package(SDL2 CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(Lua REQUIRED)
 find_package(sol2 CONFIG REQUIRED)
+find_package(miniz CONFIG REQUIRED)
 
 # ------------------------------------------------------------------------------
 # Core Daemon
@@ -40,6 +41,9 @@ if(BUILD_CORE)
         core/main.cpp
         core/framebuffer.cpp
         core/vm.cpp
+        core/cartridge.cpp
+        core/game_loop.cpp
+        core/ipc_server.cpp
     )
     
     target_include_directories(tray-console-daemon PRIVATE 
@@ -54,7 +58,16 @@ if(BUILD_CORE)
         nlohmann_json::nlohmann_json
         ${LUA_LIBRARIES}
         sol2::sol2
+        miniz::miniz
     )
+
+    # Copy games directory to build directory for instant access
+    add_custom_target(copy-games ALL
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/games
+        ${CMAKE_CURRENT_BINARY_DIR}/games
+    )
+    add_dependencies(tray-console-daemon copy-games)
 endif()
 
 # ------------------------------------------------------------------------------

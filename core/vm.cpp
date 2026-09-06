@@ -66,38 +66,58 @@ void VM::register_api() {
         m_framebuffer.clear(resolve_color(raw_col));
     };
 
-    lua["pset"] = [this](int x, int y, sol::optional<uint32_t> col) {
+    lua["pset"] = [this](double x, double y, sol::optional<uint32_t> col) {
         uint32_t raw_col = col.value_or(7); // Default white
-        m_framebuffer.set_pixel(x, y, resolve_color(raw_col));
+        m_framebuffer.set_pixel(static_cast<int>(std::round(x)), static_cast<int>(std::round(y)), resolve_color(raw_col));
     };
 
-    lua["pget"] = [this](int x, int y) -> uint32_t {
-        return m_framebuffer.get_pixel(x, y);
+    lua["pget"] = [this](double x, double y) -> uint32_t {
+        return m_framebuffer.get_pixel(static_cast<int>(std::round(x)), static_cast<int>(std::round(y)));
     };
 
-    lua["line"] = [this](int x0, int y0, int x1, int y1, sol::optional<uint32_t> col) {
+    lua["line"] = [this](double x0, double y0, double x1, double y1, sol::optional<uint32_t> col) {
         uint32_t raw_col = col.value_or(7);
-        m_framebuffer.draw_line(x0, y0, x1, y1, resolve_color(raw_col));
+        m_framebuffer.draw_line(
+            static_cast<int>(std::round(x0)), static_cast<int>(std::round(y0)),
+            static_cast<int>(std::round(x1)), static_cast<int>(std::round(y1)),
+            resolve_color(raw_col)
+        );
     };
 
-    lua["rect"] = [this](int x, int y, int w, int h, sol::optional<uint32_t> col) {
+    lua["rect"] = [this](double x, double y, double w, double h, sol::optional<uint32_t> col) {
         uint32_t raw_col = col.value_or(7);
-        m_framebuffer.draw_rect(x, y, w, h, resolve_color(raw_col));
+        m_framebuffer.draw_rect(
+            static_cast<int>(std::round(x)), static_cast<int>(std::round(y)),
+            static_cast<int>(std::round(w)), static_cast<int>(std::round(h)),
+            resolve_color(raw_col)
+        );
     };
 
-    lua["rectfill"] = [this](int x, int y, int w, int h, sol::optional<uint32_t> col) {
+    lua["rectfill"] = [this](double x, double y, double w, double h, sol::optional<uint32_t> col) {
         uint32_t raw_col = col.value_or(7);
-        m_framebuffer.fill_rect(x, y, w, h, resolve_color(raw_col));
+        m_framebuffer.fill_rect(
+            static_cast<int>(std::round(x)), static_cast<int>(std::round(y)),
+            static_cast<int>(std::round(w)), static_cast<int>(std::round(h)),
+            resolve_color(raw_col)
+        );
     };
 
-    lua["circ"] = [this](int xc, int yc, int r, sol::optional<uint32_t> col) {
+    lua["circ"] = [this](double xc, double yc, double r, sol::optional<uint32_t> col) {
         uint32_t raw_col = col.value_or(7);
-        m_framebuffer.draw_circle(xc, yc, r, resolve_color(raw_col));
+        m_framebuffer.draw_circle(
+            static_cast<int>(std::round(xc)), static_cast<int>(std::round(yc)),
+            static_cast<int>(std::round(r)),
+            resolve_color(raw_col)
+        );
     };
 
-    lua["circfill"] = [this](int xc, int yc, int r, sol::optional<uint32_t> col) {
+    lua["circfill"] = [this](double xc, double yc, double r, sol::optional<uint32_t> col) {
         uint32_t raw_col = col.value_or(7);
-        m_framebuffer.fill_circle(xc, yc, r, resolve_color(raw_col));
+        m_framebuffer.fill_circle(
+            static_cast<int>(std::round(xc)), static_cast<int>(std::round(yc)),
+            static_cast<int>(std::round(r)),
+            resolve_color(raw_col)
+        );
     };
 
     // Input API
