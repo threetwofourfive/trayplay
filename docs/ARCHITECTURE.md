@@ -34,3 +34,11 @@ Thin, 100% native clients tailored to specific operating systems and desktop env
 ### Windows
 - **Stack:** C++/WinRT (or C# WinUI 3 / WPF)
 - **Details:** Uses `NotifyIcon` for the system tray and modern windows with Mica material for the UI.
+
+---
+
+## Detailed Subsystem Documentation
+
+For deep technical breakdowns of each subsystem:
+- [Core Engine Architecture & Technical Specification](CORE_ENGINE.md)
+- [GNOME Shell Frontend Architecture & Implementation](GNOME_FRONTEND.md)
