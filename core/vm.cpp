@@ -1,4 +1,5 @@
 #include "vm.h"
+#include "audio.h"
 #include <sol/sol.hpp>
 #include <fstream>
 #include <sstream>
@@ -6,8 +7,9 @@
 
 namespace trayplay {
 
-VM::VM(Framebuffer& framebuffer)
+VM::VM(Framebuffer& framebuffer, Audio* audio)
     : m_framebuffer(framebuffer),
+      m_audio(audio),
       m_lua(std::make_unique<sol::state>()) {
     
     // Open safe standard libraries for the sandbox
@@ -120,9 +122,98 @@ void VM::register_api() {
         );
     };
 
+    // Text rendering API
+    auto stringify = [this](sol::object obj) -> std::string {
+        if (obj.is<std::string>()) return obj.as<std::string>();
+        sol::protected_function tostring_fn = (*m_lua)["tostring"];
+        if (tostring_fn.valid()) {
+            auto res = tostring_fn(obj);
+            if (res.valid()) return res.get<std::string>();
+        }
+        return "";
+    };
+
+    lua["text"] = [this, stringify](sol::object obj, double x, double y, sol::optional<uint32_t> col, sol::optional<int> scale) {
+        std::string str = stringify(obj);
+        uint32_t raw_col = col.value_or(7);
+        m_framebuffer.draw_text(
+            static_cast<int>(std::round(x)),
+            static_cast<int>(std::round(y)),
+            str,
+            resolve_color(raw_col),
+            scale.value_or(1)
+        );
+    };
+
+    lua["print"] = [this, stringify](sol::object obj, sol::optional<double> x, sol::optional<double> y, sol::optional<uint32_t> col, sol::optional<int> scale) {
+        std::string str = stringify(obj);
+        double px = x.value_or(0.0);
+        double py = y.value_or(0.0);
+        uint32_t raw_col = col.value_or(7);
+        m_framebuffer.draw_text(
+            static_cast<int>(std::round(px)),
+            static_cast<int>(std::round(py)),
+            str,
+            resolve_color(raw_col),
+            scale.value_or(1)
+        );
+    };
+
+    lua["text_width"] = [this, stringify](sol::object obj, sol::optional<int> scale) -> int {
+        std::string str = stringify(obj);
+        return m_framebuffer.text_width(str, scale.value_or(1));
+    };
+
     // Input API
     lua["btn"] = [this](const std::string& name) -> bool {
         return get_button(name);
+    };
+
+    // Chiptune Audio API
+    sol::table waves = lua.create_table();
+    waves["PULSE"] = static_cast<int>(Waveform::PULSE);
+    waves["SQUARE"] = static_cast<int>(Waveform::PULSE);
+    waves["TRIANGLE"] = static_cast<int>(Waveform::TRIANGLE);
+    waves["NOISE"] = static_cast<int>(Waveform::NOISE);
+    waves["SINE"] = static_cast<int>(Waveform::SINE);
+    waves["SAWTOOTH"] = static_cast<int>(Waveform::SAWTOOTH);
+    lua["WAVE"] = waves;
+
+    lua["beep"] = [this](sol::optional<double> freq, sol::optional<double> duration_ms, sol::optional<double> volume, sol::optional<int> wave) {
+        if (!m_audio) return;
+        float f = static_cast<float>(freq.value_or(440.0));
+        float d = static_cast<float>(duration_ms.value_or(100.0));
+        float v = static_cast<float>(volume.value_or(0.5));
+        int w = wave.value_or(0);
+        m_audio->beep(f, d, v, static_cast<Waveform>(w));
+    };
+
+    lua["sfx"] = [this](sol::object param) {
+        if (!m_audio) return;
+        if (param.is<std::string>()) {
+            m_audio->play_sfx(param.as<std::string>());
+        }
+    };
+
+    lua["tone"] = [this](int channel, double freq, double duration_ms, sol::optional<double> volume, sol::optional<int> wave, sol::optional<double> sweep) {
+        if (!m_audio) return;
+        m_audio->tone(
+            channel,
+            static_cast<float>(freq),
+            static_cast<float>(duration_ms),
+            static_cast<float>(volume.value_or(0.5)),
+            static_cast<Waveform>(wave.value_or(0)),
+            static_cast<float>(sweep.value_or(0.0))
+        );
+    };
+
+    lua["stop_audio"] = [this](sol::optional<int> channel) {
+        if (!m_audio) return;
+        if (channel.has_value()) {
+            m_audio->stop_channel(channel.value());
+        } else {
+            m_audio->stop();
+        }
     };
 }
 

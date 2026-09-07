@@ -15,6 +15,15 @@ local ball = {
     size = 4
 }
 
+local sound_muted = false
+local last_m_btn = false
+
+local function play_sound(name)
+    if not sound_muted then
+        sfx(name)
+    end
+end
+
 function init()
     p1.y = 76
     p2.y = 76
@@ -31,20 +40,23 @@ function reset_ball(dir)
 end
 
 function update(dt)
-    -- 1. Player 1 input (Arrow keys / W/S or auto demo)
+    -- Mute sound toggle (M key)
+    local m_pressed = btn("m")
+    if m_pressed and not last_m_btn then
+        sound_muted = not sound_muted
+        if sound_muted then
+            stop_audio()
+        else
+            sfx("blip")
+        end
+    end
+    last_m_btn = m_pressed
+
+    -- 1. Player 1 input (Strictly manual: W/S or Up/Down arrows)
     if btn("up") or btn("w") then
         p1.y = math.max(4, p1.y - paddle_speed)
     elseif btn("down") or btn("s") then
         p1.y = math.min(180 - paddle_h - 4, p1.y + paddle_speed)
-    else
-        -- Simple auto-assist demo mode if no buttons held
-        if ball.vx < 0 then
-            if p1.y + paddle_h / 2 < ball.y - 2 then
-                p1.y = math.min(180 - paddle_h - 4, p1.y + paddle_speed * 0.7)
-            elseif p1.y + paddle_h / 2 > ball.y + 2 then
-                p1.y = math.max(4, p1.y - paddle_speed * 0.7)
-            end
-        end
     end
 
     -- 2. AI Player 2 tracking
@@ -65,9 +77,11 @@ function update(dt)
     if ball.y <= 4 then
         ball.y = 4
         ball.vy = -ball.vy
+        play_sound("wall")
     elseif ball.y >= 180 - ball.size - 4 then
         ball.y = 180 - ball.size - 4
         ball.vy = -ball.vy
+        play_sound("wall")
     end
 
     -- 5. Collision with Left Paddle (p1)
@@ -78,6 +92,7 @@ function update(dt)
             -- Angle deflection based on hit position
             local offset = (ball.y + ball.size / 2) - (p1.y + paddle_h / 2)
             ball.vy = offset * 0.15
+            play_sound("hit")
         end
     end
 
@@ -88,15 +103,18 @@ function update(dt)
             ball.vx = -math.abs(ball.vx) * 1.05 -- speed up
             local offset = (ball.y + ball.size / 2) - (p2.y + paddle_h / 2)
             ball.vy = offset * 0.15
+            play_sound("hit")
         end
     end
 
     -- 7. Goal detection
     if ball.x < 0 then
         p2.score = p2.score + 1
+        play_sound("score")
         reset_ball(1)
     elseif ball.x > 320 then
         p1.score = p1.score + 1
+        play_sound("score")
         reset_ball(-1)
     end
 end
@@ -114,6 +132,15 @@ function draw()
         rectfill(159, y, 2, 4, 5)
     end
 
+    -- Subtitle
+    print("PONG", 148, 6, 5, 1)
+
+    -- Player 1 Score (Blue, 2x scale)
+    print(p1.score, 110, 10, 12, 2)
+
+    -- Player 2 Score (Red, 2x scale)
+    print(p2.score, 196, 10, 8, 2)
+
     -- Left Paddle: Blue (palette 12)
     rectfill(p1.x, p1.y, paddle_w, paddle_h, 12)
 
@@ -123,11 +150,11 @@ function draw()
     -- Ball: Yellow (palette 10)
     rectfill(math.floor(ball.x), math.floor(ball.y), ball.size, ball.size, 10)
 
-    -- Score indicators (simple bar graphs)
-    for i = 1, math.min(10, p1.score) do
-        rectfill(140 - (i * 6), 8, 4, 4, 12)
-    end
-    for i = 1, math.min(10, p2.score) do
-        rectfill(176 + (i * 6), 8, 4, 4, 8)
-    end
+    -- Controls hints
+    print("W / S : MOVE", 8, 166, 5, 1)
+
+    local mute_label = sound_muted and "M : MUTE [ON]" or "M : MUTE [OFF]"
+    local mute_color = sound_muted and 8 or 5 -- Red if muted, dark gray if sound on
+    local mute_x = 320 - text_width(mute_label, 1) - 8
+    print(mute_label, mute_x, 166, mute_color, 1)
 end

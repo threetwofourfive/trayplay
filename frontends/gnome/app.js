@@ -13,7 +13,7 @@ import Cairo from 'gi://cairo';
 
 const SHM_PATH = '/dev/shm/trayplay_framebuffer';
 const SOCKET_PATH = '/tmp/trayplay.sock';
-const HEADER_SIZE = 96;
+const HEADER_SIZE = 100;
 const VIRTUAL_WIDTH = 320;
 const VIRTUAL_HEIGHT = 180;
 const BUFFER_SIZE = VIRTUAL_WIDTH * VIRTUAL_HEIGHT * 4;
@@ -310,6 +310,9 @@ export const TrayPlayIndicator = GObject.registerClass({
                 return 'start';
             case Clutter.KEY_Escape:
                 return 'select';
+            case Clutter.KEY_m:
+            case Clutter.KEY_M:
+                return 'm';
             default:
                 return null;
         }
@@ -384,6 +387,7 @@ export const TrayPlayIndicator = GObject.registerClass({
             if (state === 1) { // RUNNING
                 if (frameIndex !== this._lastFrameIndex) {
                     this._lastFrameIndex = frameIndex;
+                    this._staleFrameTicks = 0;
 
                     const pixelSlice = arr.subarray(HEADER_SIZE, HEADER_SIZE + BUFFER_SIZE);
                     const pixelBytes = new GLib.Bytes(pixelSlice);
@@ -399,17 +403,28 @@ export const TrayPlayIndicator = GObject.registerClass({
                     );
 
                     this._canvas.queue_repaint();
+                } else {
+                    this._staleFrameTicks = (this._staleFrameTicks || 0) + 1;
+                    // If no new frames for ~1.5s, verify daemon responsiveness
+                    if (this._staleFrameTicks > 90) {
+                        this._setWaitingState();
+                        return;
+                    }
                 }
 
-                if (this._placeholderBox.visible) {
-                    this._placeholderBox.hide();
-                    this._canvas.show();
-                }
+                if (this._currentPixbuf) {
+                    if (this._placeholderBox.visible) {
+                        this._placeholderBox.hide();
+                        this._canvas.show();
+                    }
 
-                this._titleLabel.text = title.toUpperCase();
-                const fpsText = Math.round(fps);
-                this._statusBadge.text = `● ACTIVE (${fpsText} FPS)`;
-                this._statusBadge.style = 'color: #00ffcc; background-color: rgba(0, 255, 204, 0.15);';
+                    this._titleLabel.text = title.toUpperCase();
+                    const fpsText = Math.round(fps);
+                    this._statusBadge.text = `● ACTIVE (${fpsText} FPS)`;
+                    this._statusBadge.style = 'color: #00ffcc; background-color: rgba(0, 255, 204, 0.15);';
+                } else {
+                    this._setWaitingState();
+                }
             } else if (state === 3) { // CRASHED
                 this._setErrorState();
             } else if (state === 2) { // PAUSED
@@ -425,6 +440,8 @@ export const TrayPlayIndicator = GObject.registerClass({
 
     _setWaitingState() {
         this._currentPixbuf = null;
+        this._lastFrameIndex = -1n;
+        this._staleFrameTicks = 0;
         this._titleLabel.text = 'TRAYPLAY';
         this._canvas.hide();
         this._placeholderBox.show();
@@ -436,6 +453,8 @@ export const TrayPlayIndicator = GObject.registerClass({
 
     _setErrorState(errorMsg) {
         this._currentPixbuf = null;
+        this._lastFrameIndex = -1n;
+        this._staleFrameTicks = 0;
         this._canvas.hide();
         this._placeholderBox.show();
         this._placeholderTitle.text = '▶ ERROR ◀';
@@ -445,8 +464,28 @@ export const TrayPlayIndicator = GObject.registerClass({
     }
 
     _ensureDaemon() {
-        // Quick check if socket is responsive
         if (!GLib.file_test(SOCKET_PATH, GLib.FileTest.EXISTS)) {
+            this._spawnDaemon();
+            return;
+        }
+
+        // Test if socket is genuinely responsive (not a stale socket from a dead process)
+        try {
+            const client = new Gio.SocketClient();
+            const addr = Gio.UnixSocketAddress.new(SOCKET_PATH);
+            client.connect_async(addr, null, (source, res) => {
+                try {
+                    const conn = client.connect_finish(res);
+                    conn.close(null);
+                } catch (e) {
+                    // Stale dead socket: clean up and spawn fresh daemon
+                    try {
+                        GLib.unlink(SOCKET_PATH);
+                    } catch (_) {}
+                    this._spawnDaemon();
+                }
+            });
+        } catch (e) {
             this._spawnDaemon();
         }
     }
@@ -475,8 +514,9 @@ export const TrayPlayIndicator = GObject.registerClass({
         }
     }
 
-    _sendIpcCommand(commandObj) {
+    _sendIpcCommand(commandObj, callback = null) {
         if (!GLib.file_test(SOCKET_PATH, GLib.FileTest.EXISTS)) {
+            if (callback) callback(false, 'Socket not found');
             return;
         }
 
@@ -494,14 +534,19 @@ export const TrayPlayIndicator = GObject.registerClass({
                         null,
                         () => {
                             conn.close(null);
+                            if (callback) callback(true, 'OK');
                         }
                     );
                 } catch (e) {
-                    // Socket communication error
+                    // Socket communication error or connection refused
+                    try {
+                        GLib.unlink(SOCKET_PATH);
+                    } catch (_) {}
+                    if (callback) callback(false, e.message);
                 }
             });
         } catch (e) {
-            // Client error
+            if (callback) callback(false, e.message);
         }
     }
 
@@ -524,7 +569,16 @@ export const TrayPlayIndicator = GObject.registerClass({
                     const [, stdout] = proc.communicate_utf8_finish(res);
                     if (stdout && stdout.trim().length > 0) {
                         const filePath = stdout.trim();
-                        this._sendIpcCommand({ cmd: 'load', path: filePath });
+                        this._sendIpcCommand({ cmd: 'load', path: filePath }, (success) => {
+                            if (!success) {
+                                // If sending failed, retry once after ensuring daemon
+                                this._ensureDaemon();
+                                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
+                                    this._sendIpcCommand({ cmd: 'load', path: filePath });
+                                    return GLib.SOURCE_REMOVE;
+                                });
+                            }
+                        });
                         GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
                             if (!this._isDestroyed && !this.menu.isOpen) {
                                 this.menu.open();
@@ -542,8 +596,15 @@ export const TrayPlayIndicator = GObject.registerClass({
     }
 
     _onEjectClicked() {
-        this._sendIpcCommand({ cmd: 'unload' });
         this._setWaitingState();
+        this._sendIpcCommand({ cmd: 'unload' }, (success) => {
+            if (!success) {
+                // If daemon is unreachable or dead, clear SHM so pollFrame never reads stale running state
+                try {
+                    GLib.unlink(SHM_PATH);
+                } catch (_) {}
+            }
+        });
     }
 
     destroy() {

@@ -25,6 +25,8 @@ The core subsystem files reside in `core/`:
 ```text
 core/
 ├── framebuffer.h / .cpp    # Virtual 320x180 RGBA32 video memory and 2D drawing primitives
+├── font.h / .cpp           # 5x7 retro ASCII bitmap font and scaled text rasterizer
+├── audio.h / .cpp          # 4-channel chiptune synthesizer and SDL2 audio callback pipeline
 ├── vm.h / .cpp             # Sandboxed Lua 5.5 VM with Sol2 C++ bindings and fantasy console API
 ├── cartridge.h / .cpp      # Cartridge package loader (.gpak ZIP via miniz, raw .lua, directories)
 ├── game_loop.h / .cpp      # Deterministic 60 FPS fixed-timestep loop, state machine, and telemetry
@@ -58,6 +60,8 @@ Untrusted cartridges downloaded from the web must not compromise the host system
 #### Microconsole API
 The VM exposes classic microconsole functions with floating-point coordinate tolerance:
 - **Graphics**: `cls(col)`, `pset(x, y, col)`, `pget(x, y)`, `line(x0, y0, x1, y1, col)`, `rect(x, y, w, h, col)`, `rectfill(x, y, w, h, col)`, `circ(x, y, r, col)`, `circfill(x, y, r, col)`.
+- **Typography**: `text(str, x, y, [col], [scale])`, `print(str, [x], [y], [col], [scale])`, `text_width(str, [scale])`.
+- **Chiptune Audio**: `beep([freq], [duration_ms], [vol], [wave])`, `sfx(preset_name)`, `tone(ch, freq, duration_ms, [vol], [wave], [sweep])`, `stop_audio([ch])`.
 - **Palette**: Built-in 16-color fantasy console palette (indices `0`–`15`), with seamless fallback to custom 32-bit `rgba(r, g, b, a)` colors.
 - **Input**: `btn(name)` queries directional buttons (`up`, `down`, `left`, `right`, `a`, `b`, `start`, `select`).
 - **Lifecycle Hooks**: Cartridges implement standard callbacks:
@@ -65,7 +69,15 @@ The VM exposes classic microconsole functions with floating-point coordinate tol
   - `update(dt)`: Called 60 times per second for game logic.
   - `draw()`: Called every frame to render graphics into the framebuffer.
 
-### 3.3. Cartridge Package Format (`Cartridge`)
+### 3.3. Retro Bitmap Font Engine (`RetroFont`)
+
+TrayPlay includes a built-in 5x7 ASCII bitmap font embedded directly in binary:
+- **Coverage**: ASCII 32 (`' '`) to 126 (`'~'`).
+- **Cell Geometry**: 5x7 glyph pixels with 1-pixel horizontal and vertical spacing (6x8 cell size).
+- **Integer Scaling**: Supports arbitrary scaling (`1x`, `2x`, `3x`) via block replication (`fill_rect`), preserving pixel-crisp retro typography without blur.
+- **Auto-Formatting**: Built-in handling of multi-line strings (`\n`) and automatic measurement helpers.
+
+### 3.4. Cartridge Package Format (`Cartridge`)
 
 A `.gpak` file is an industry-standard ZIP archive containing the game assets and manifest:
 
@@ -78,7 +90,7 @@ game.gpak (ZIP container):
 - **Decompression via `miniz`**: In-memory unzipping eliminates disk writes and temporary directory bloat.
 - **Developer Mode**: In addition to packaged `.gpak` archives, the loader directly executes raw `.lua` scripts and uncompressed directories for instant iteration without re-packaging.
 
-### 3.4. Deterministic Game Loop (`GameLoop`)
+### 3.5. Deterministic Game Loop (`GameLoop`)
 
 Timing precision is critical for retro games. TrayPlay implements the classic **Fixed Timestep Accumulator** pattern:
 
@@ -105,6 +117,21 @@ The game loop operates as a finite state machine:
 - `RUNNING` (1): Cartridge active; running fixed-timestep updates and rendering at 60 FPS.
 - `PAUSED` (2): Game logic and frame updates frozen.
 - `CRASHED` (3): Script exception captured; error message recorded without terminating the daemon.
+
+### 3.6. Polyphonic Chiptune Audio Synthesizer (`Audio`)
+
+TrayPlay includes an integrated 4-channel retro audio synthesizer running on the native **SDL2 audio callback pipeline**:
+- **Output Format**: 44,100 Hz, 16-bit signed Mono (`AUDIO_S16SYS`), 1024-sample low-latency buffer (~23 ms).
+- **Polyphony**: 4 simultaneous hardware-like channels (Lead, Harmony, Bass, Noise/SFX).
+- **Waveform Generators**:
+  - `PULSE` (0): 50% duty square wave with pitch bend (classic NES/Game Boy lead).
+  - `TRIANGLE` (1): Smooth triangle waveform (warm retro bass).
+  - `NOISE` (2): 16-bit Linear Feedback Shift Register (LFSR) pseudo-random noise for percussion and explosions.
+  - `SINE` (3): Pure sinusoidal curve.
+  - `SAWTOOTH` (4): Bright harmonically rich ramp wave.
+- **Dynamic Envelope Shaping**: Smooth 2ms attack and 10ms linear decay to eliminate audio pop/clicks on note triggers.
+- **Built-in SFX Presets**: `"hit"`, `"wall"`, `"score"`, `"coin"`, `"miss"`, `"explosion"`, `"blip"`.
+- **Headless Fallback**: Automatically detects missing audio hardware or container environments, running smoothly in silent mode without performance degradation or errors.
 
 ---
 
@@ -156,7 +183,7 @@ struct SharedFrameHeader {
 #pragma pack(pop)
 ```
 
-Directly following the 96-byte header is the raw 230,400-byte RGBA32 pixel buffer. Frontend clients map this file once using memory-mapped I/O (`GLib.MappedFile` in GJS, `mmap` / POSIX API in Swift, `MapViewOfFile` in Windows), eliminating all IPC serialization and network copying overhead.
+Directly following the 100-byte header is the raw 230,400-byte RGBA32 pixel buffer. Frontend clients map this file once using memory-mapped I/O (`GLib.MappedFile` in GJS, `mmap` / POSIX API in Swift, `MapViewOfFile` in Windows), eliminating all IPC serialization and network copying overhead.
 
 ### 4.2. Command Stream: Unix Domain Socket
 

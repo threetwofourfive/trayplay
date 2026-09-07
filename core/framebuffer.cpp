@@ -1,4 +1,5 @@
 #include "framebuffer.h"
+#include "font.h"
 #include <cmath>
 #include <cstdlib>
 
@@ -141,6 +142,71 @@ void Framebuffer::fill_circle(int xc, int yc, int r, uint32_t color) {
             d = d + 4 * x + 6;
         }
     }
+}
+
+void Framebuffer::draw_char(int x, int y, char c, uint32_t color, int scale) {
+    if (scale < 1) scale = 1;
+    const uint8_t* glyph = RetroFont::get_glyph(c);
+
+    if (scale == 1) {
+        for (int col = 0; col < RetroFont::GLYPH_WIDTH; ++col) {
+            uint8_t col_mask = glyph[col];
+            for (int row = 0; row < RetroFont::GLYPH_HEIGHT; ++row) {
+                if (col_mask & (1 << row)) {
+                    set_pixel(x + col, y + row, color);
+                }
+            }
+        }
+    } else {
+        for (int col = 0; col < RetroFont::GLYPH_WIDTH; ++col) {
+            uint8_t col_mask = glyph[col];
+            for (int row = 0; row < RetroFont::GLYPH_HEIGHT; ++row) {
+                if (col_mask & (1 << row)) {
+                    fill_rect(x + col * scale, y + row * scale, scale, scale, color);
+                }
+            }
+        }
+    }
+}
+
+void Framebuffer::draw_text(int x, int y, const std::string& text, uint32_t color, int scale) {
+    if (scale < 1) scale = 1;
+    int cur_x = x;
+    int cur_y = y;
+
+    for (char c : text) {
+        if (c == '\n') {
+            cur_x = x;
+            cur_y += RetroFont::CELL_HEIGHT * scale;
+            continue;
+        }
+        if (c == '\r') {
+            continue;
+        }
+        draw_char(cur_x, cur_y, c, color, scale);
+        cur_x += RetroFont::CELL_WIDTH * scale;
+    }
+}
+
+int Framebuffer::text_width(const std::string& text, int scale) const {
+    if (scale < 1) scale = 1;
+    int max_len = 0;
+    int cur_len = 0;
+    for (char c : text) {
+        if (c == '\n') {
+            if (cur_len > max_len) max_len = cur_len;
+            cur_len = 0;
+        } else if (c != '\r') {
+            cur_len++;
+        }
+    }
+    if (cur_len > max_len) max_len = cur_len;
+    return max_len * RetroFont::CELL_WIDTH * scale;
+}
+
+int Framebuffer::text_height(int scale) const {
+    if (scale < 1) scale = 1;
+    return RetroFont::CELL_HEIGHT * scale;
 }
 
 } // namespace trayplay

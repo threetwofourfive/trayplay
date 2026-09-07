@@ -40,6 +40,8 @@ if(BUILD_CORE)
     add_executable(tray-console-daemon 
         core/main.cpp
         core/framebuffer.cpp
+        core/font.cpp
+        core/audio.cpp
         core/vm.cpp
         core/cartridge.cpp
         core/game_loop.cpp

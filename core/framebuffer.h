@@ -4,6 +4,7 @@
 #include <vector>
 #include <cstddef>
 #include <algorithm>
+#include <string>
 
 namespace trayplay {
 
@@ -28,6 +29,12 @@ public:
     void fill_rect(int x, int y, int w, int h, uint32_t color);
     void draw_circle(int xc, int yc, int r, uint32_t color);
     void fill_circle(int xc, int yc, int r, uint32_t color);
+
+    // Retro Text Rendering
+    void draw_char(int x, int y, char c, uint32_t color, int scale = 1);
+    void draw_text(int x, int y, const std::string& text, uint32_t color, int scale = 1);
+    int text_width(const std::string& text, int scale = 1) const;
+    int text_height(int scale = 1) const;
 
     // Buffer data pointer access (for Shared Memory / IPC streaming)
     const uint32_t* data() const noexcept { return m_pixels.data(); }

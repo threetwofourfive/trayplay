@@ -1,10 +1,13 @@
 #include <iostream>
 #include <iomanip>
+#include <fstream>
 #include <chrono>
 #include <thread>
 #include <csignal>
 #include <atomic>
+#include <unistd.h>
 #include "framebuffer.h"
+#include "audio.h"
 #include "vm.h"
 #include "cartridge.h"
 #include "game_loop.h"
@@ -27,8 +30,33 @@ int main(int argc, char* argv[]) {
     std::cout << "   TrayPlay Microconsole Core Daemon   " << std::endl;
     std::cout << "========================================" << std::endl;
 
+    // Ensure single running instance
+    const std::string pid_file = "/tmp/trayplay.pid";
+    {
+        std::ifstream pfile(pid_file);
+        pid_t old_pid = 0;
+        if (pfile >> old_pid && old_pid > 0 && old_pid != ::getpid()) {
+            if (::kill(old_pid, 0) == 0) {
+                std::cout << "[Core] Terminating existing daemon (PID " << old_pid << ")..." << std::endl;
+                ::kill(old_pid, SIGTERM);
+                std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                if (::kill(old_pid, 0) == 0) {
+                    ::kill(old_pid, SIGKILL);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                }
+            }
+        }
+    }
+    {
+        std::ofstream pfile(pid_file);
+        pfile << ::getpid() << std::endl;
+    }
+
     trayplay::Framebuffer fb;
-    trayplay::VM vm(fb);
+    trayplay::Audio audio;
+    audio.init();
+
+    trayplay::VM vm(fb, &audio);
     trayplay::GameLoop game_loop(fb, vm);
     trayplay::IpcServer ipc(game_loop, vm, fb);
 
@@ -80,6 +108,8 @@ int main(int argc, char* argv[]) {
     }
 
     ipc.stop();
+    audio.shutdown();
+    ::unlink(pid_file.c_str());
     std::cout << "[Core] Daemon exited cleanly." << std::endl;
     return 0;
 }

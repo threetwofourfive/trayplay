@@ -14,10 +14,15 @@ namespace sol {
 
 namespace trayplay {
 
+class Audio;
+
 class VM {
 public:
-    explicit VM(Framebuffer& framebuffer);
+    explicit VM(Framebuffer& framebuffer, Audio* audio = nullptr);
     ~VM();
+
+    void set_audio(Audio* audio) noexcept { m_audio = audio; }
+    Audio* get_audio() const noexcept { return m_audio; }
 
     // Prevent copying
     VM(const VM&) = delete;
@@ -72,6 +77,7 @@ private:
     void register_api();
 
     Framebuffer& m_framebuffer;
+    Audio* m_audio{nullptr};
     std::unique_ptr<sol::state> m_lua;
     std::unordered_map<std::string, bool> m_buttons;
     std::string m_last_error;

@@ -1,4 +1,5 @@
 #include "game_loop.h"
+#include "audio.h"
 #include <thread>
 #include <iostream>
 
@@ -43,6 +44,9 @@ bool GameLoop::load_cartridge(const Cartridge& cartridge) {
 
 void GameLoop::unload_cartridge() {
     std::lock_guard<std::mutex> lock(m_mutex);
+    if (auto* a = m_vm.get_audio()) {
+        a->stop();
+    }
     m_framebuffer.clear(0x000000FF);
     m_telemetry.fps = 0.0;
     m_state.store(GameState::STOPPED);
@@ -60,6 +64,9 @@ void GameLoop::start() {
 
 void GameLoop::pause() {
     if (m_state.load() == GameState::RUNNING) {
+        if (auto* a = m_vm.get_audio()) {
+            a->stop();
+        }
         m_state.store(GameState::PAUSED);
     }
 }
@@ -70,6 +77,9 @@ void GameLoop::resume() {
 
 void GameLoop::stop() {
     m_should_exit.store(true);
+    if (auto* a = m_vm.get_audio()) {
+        a->stop();
+    }
     if (m_state.load() != GameState::CRASHED) {
         m_state.store(GameState::STOPPED);
     }
