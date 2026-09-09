@@ -1,0 +1,23 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        # Update desktop database
+        if [ -x /usr/bin/update-desktop-database ]; then
+            update-desktop-database -q /usr/share/applications || true
+        fi
+
+        # Update GTK icon cache
+        if [ -x /usr/bin/gtk-update-icon-cache ]; then
+            gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
+        fi
+
+        # Update AppStream metadata cache for GNOME Software / App Center
+        if [ -x /usr/bin/appstreamcli ]; then
+            appstreamcli refresh-cache --force >/dev/null 2>&1 || true
+        fi
+    ;;
+esac
+
+exit 0

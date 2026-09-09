@@ -28,6 +28,22 @@
     padding: 2px 8px;
 }
 
+.trayplay-header-quit-btn {
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 2px 6px;
+    margin-left: 6px;
+    color: #57606f;
+    transition-duration: 100ms;
+}
+
+.trayplay-header-quit-btn:hover {
+    background-color: rgba(255, 71, 87, 0.2);
+    border-color: rgba(255, 71, 87, 0.6);
+    color: #ff4757;
+}
+
 /* Wide Screen / Canvas Field */
 .trayplay-screen-frame {
     background-color: #0c0e12;

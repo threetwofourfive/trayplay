@@ -2,6 +2,8 @@
   "uuid": "trayplay@threetwofourfive.github.io",
   "name": "TrayPlay Microconsole",
   "description": "Virtual microconsole in system tray",
+  "url": "https://github.com/threetwofourfive/trayplay",
+  "version": 1,
   "shell-version": [
     "45",
     "46",

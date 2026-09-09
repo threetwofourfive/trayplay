@@ -67,3 +67,11 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# Package outputs
+*.deb
+*.rpm
+_CPack_Packages/
+CPackConfig.cmake
+CPackSourceConfig.cmake
+

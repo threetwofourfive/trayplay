@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=TrayPlay
+GenericName=Virtual Microconsole
+Comment=Virtual microconsole in system tray
+Icon=trayplay
+Exec=/usr/bin/trayplay
+Terminal=false
+Categories=Game;Emulator;
+Keywords=game;console;tray;microconsole;
+StartupNotify=false

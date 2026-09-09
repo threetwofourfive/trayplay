@@ -179,4 +179,79 @@ elseif(UNIX AND NOT APPLE)
         add_library(frontend-waybar SHARED frontends/waybar/module.cpp)
         set_target_properties(frontend-waybar PROPERTIES PREFIX "")
     endif()
+
+    # --------------------------------------------------------------------------
+    # System Installation & Packaging (CPack)
+    # --------------------------------------------------------------------------
+    include(GNUInstallDirs)
+
+    # 1. Core Daemon binary
+    if(BUILD_CORE AND TARGET tray-console-daemon)
+        install(TARGETS tray-console-daemon
+            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        )
+    endif()
+
+    # 2. Desktop Launcher script (/usr/bin/trayplay)
+    install(PROGRAMS packaging/bin/trayplay
+        DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+
+    # 3. Desktop Entry (/usr/share/applications/trayplay.desktop)
+    install(FILES packaging/trayplay.desktop
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
+    )
+
+    # 4. Scalable Vector Application Icon (/usr/share/icons/hicolor/scalable/apps/trayplay.svg)
+    install(FILES packaging/icons/trayplay.svg
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+    )
+
+    # 5. AppStream Metadata (/usr/share/metainfo/io.github.threetwofourfive.trayplay.metainfo.xml)
+    install(FILES packaging/metainfo/io.github.threetwofourfive.trayplay.metainfo.xml
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo
+    )
+
+    # 6. Games Library (cartridges in /usr/share/trayplay/games)
+    install(DIRECTORY games/
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/trayplay/games
+        PATTERN ".*" EXCLUDE
+    )
+
+    # 7. GNOME Shell Extension
+    if(BUILD_FRONTEND_GNOME)
+        install(DIRECTORY frontends/gnome/
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/gnome-shell/extensions/trayplay@threetwofourfive.github.io
+            PATTERN ".*" EXCLUDE
+        )
+    endif()
+
+    # --------------------------------------------------------------------------
+    # CPack Configuration (.deb & .rpm)
+    # --------------------------------------------------------------------------
+    set(CPACK_PACKAGE_NAME "trayplay")
+    set(CPACK_PACKAGE_VENDOR "threetwofourfive")
+    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Virtual Microconsole in the System Tray")
+    set(CPACK_PACKAGE_DESCRIPTION "TrayPlay is an ultra-lightweight virtual microconsole living directly in your system tray. Features sandboxed Lua runtime, chiptune synthesizer, 60 FPS fixed-timestep loop, and native desktop integration.")
+    set(CPACK_PACKAGE_VERSION "0.1.0")
+    set(CPACK_PACKAGE_CONTACT "threetwofourfive@users.noreply.github.com")
+    set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/threetwofourfive/trayplay")
+    set(CPACK_PACKAGE_LICENSE "MIT")
+
+    # Debian Package (.deb)
+    set(CPACK_DEBIAN_PACKAGE_MAINTAINER "threetwofourfive")
+    set(CPACK_DEBIAN_PACKAGE_SECTION "games")
+    set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
+    set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
+        "${CMAKE_CURRENT_SOURCE_DIR}/packaging/debian/postinst;${CMAKE_CURRENT_SOURCE_DIR}/packaging/debian/postrm"
+    )
+    set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+    set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "gnome-shell | xfce4-panel | plasma-workspace")
+
+    # RPM Package (.rpm)
+    set(CPACK_RPM_PACKAGE_LICENSE "MIT")
+    set(CPACK_RPM_PACKAGE_GROUP "Amusements/Games")
+    set(CPACK_RPM_PACKAGE_AUTOREQ ON)
+
+    include(CPack)
 endif()

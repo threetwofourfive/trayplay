@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# TrayPlay Unified Application Launcher
+set -e
+
+UUID="trayplay@threetwofourfive.github.io"
+CURRENT_DE="${XDG_CURRENT_DESKTOP:-$DESKTOP_SESSION}"
+
+case "$CURRENT_DE" in
+    *GNOME*|*Unity*|*ubuntu:GNOME*)
+        if command -v gnome-extensions >/dev/null 2>&1; then
+            # Sync to user-local directory so both system and per-user paths are populated
+            USER_EXT_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/${UUID}"
+            SYS_EXT_DIR="/usr/share/gnome-shell/extensions/${UUID}"
+            if [ ! -d "$USER_EXT_DIR" ] && [ -d "$SYS_EXT_DIR" ]; then
+                mkdir -p "$(dirname "$USER_EXT_DIR")"
+                cp -r "$SYS_EXT_DIR" "$USER_EXT_DIR" 2>/dev/null || true
+            fi
+
+            # Check if extension is already recognized by GNOME Shell
+            if gnome-extensions list | grep -q "^${UUID}$"; then
+                if gnome-extensions list --enabled | grep -q "^${UUID}$"; then
+                    echo "[TrayPlay] Extension is already active in system tray."
+                else
+                    echo "[TrayPlay] Enabling GNOME Shell extension..."
+                    gnome-extensions enable "${UUID}"
+                fi
+            else
+                echo "[TrayPlay] Extension not yet indexed by running GNOME Shell session."
+                # Attempt official dynamic installation via GNOME Shell EGO DBus API
+                INSTALLED=false
+                if command -v gdbus >/dev/null 2>&1; then
+                    echo "[TrayPlay] Requesting dynamic extension installation from catalog..."
+                    if gdbus call --session \
+                            --dest org.gnome.Shell.Extensions \
+                            --object-path /org/gnome/Shell/Extensions \
+                            --method org.gnome.Shell.Extensions.InstallRemoteExtension "${UUID}" >/dev/null 2>&1; then
+                        INSTALLED=true
+                        gnome-extensions enable "${UUID}" 2>/dev/null || true
+                    fi
+                fi
+
+                # If dynamic install succeeded, it is now active. If not (e.g. offline / unapproved), guide user.
+                if [ "$INSTALLED" = false ] && ! gnome-extensions list | grep -q "^${UUID}$"; then
+                    if command -v notify-send >/dev/null 2>&1; then
+                        notify-send -u normal -i trayplay "TrayPlay" "Для первой активации расширения в GNOME Shell требуется один раз перезайти в сеанс (Log Out / Log In)." 2>/dev/null || true
+                    fi
+                    if command -v zenity >/dev/null 2>&1; then
+                        zenity --info --title="TrayPlay" --text="Пакет TrayPlay успешно установлен!\n\nВ GNOME Shell на Wayland для первой активации локального расширения необходимо один раз выйти из системы (Выйти / Завершить сеанс) и войти снова.\n\nПосле этого приложение будет включаться и выключаться мгновенно в один клик." --width=380 2>/dev/null || true
+                    fi
+                fi
+            fi
+        fi
+        ;;
+    *XFCE*)
+        # Future XFCE panel plugin launcher / fallback
+        if [ -x /usr/bin/trayplay-xfce ]; then
+            exec /usr/bin/trayplay-xfce
+        else
+            /usr/bin/tray-console-daemon &
+        fi
+        ;;
+    *)
+        # Generic fallback: spawn daemon
+        if command -v gnome-extensions >/dev/null 2>&1 && gnome-extensions list | grep -q "^${UUID}$"; then
+            gnome-extensions enable "${UUID}"
+        else
+            /usr/bin/tray-console-daemon &
+        fi
+        ;;
+esac

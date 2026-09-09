@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.threetwofourfive.trayplay</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>TrayPlay</name>
+  <summary>Virtual microconsole in the system tray</summary>
+  <developer id="io.github.threetwofourfive">
+    <name>threetwofourfive</name>
+  </developer>
+  <description>
+    <p>
+      TrayPlay is an ultra-lightweight virtual microconsole living directly in your desktop system tray.
+      It features an embedded retro game canvas, sandboxed Lua runtime, 60 FPS fixed-timestep loop,
+      chiptune audio synthesizer, and zero background resource consumption when not in use.
+    </p>
+  </description>
+  <launchable type="desktop-id">trayplay.desktop</launchable>
+  <icon type="stock">trayplay</icon>
+  <categories>
+    <category>Game</category>
+    <category>Emulator</category>
+  </categories>
+  <content_rating type="oars-1.1" />
+  <url type="homepage">https://github.com/threetwofourfive/trayplay</url>
+  <provides>
+    <binary>trayplay</binary>
+  </provides>
+  <releases>
+    <release version="0.1.0" date="2026-09-08">
+      <description>
+        <p>Initial release with embedded retro games, GNOME Shell frontend, and on-demand lifecycle.</p>
+      </description>
+    </release>
+  </releases>
+</component>

@@ -150,6 +150,18 @@ export const TrayPlayIndicator = GObject.registerClass({
         });
         this._statusBadge.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
         headerBox.add_child(this._statusBadge);
+
+        this._quitBtn = new St.Button({
+            style_class: 'trayplay-header-quit-btn button',
+            can_focus: true,
+            child: new St.Icon({
+                icon_name: 'system-shutdown-symbolic',
+                icon_size: 13,
+            }),
+        });
+        this._quitBtn.connect('clicked', () => this._quitApp());
+        headerBox.add_child(this._quitBtn);
+
         rootBox.add_child(headerBox);
 
         // 2. Game View (Screen Frame + Controls)
@@ -285,22 +297,29 @@ export const TrayPlayIndicator = GObject.registerClass({
         this._contextMenu.addMenuItem(sep);
 
         const exitItem = new PopupMenu.PopupMenuItem('Quit');
-        exitItem.connect('activate', () => {
-            this._contextMenu.close();
-            this._sendIpcCommand({ cmd: 'quit' });
-            try {
-                Gio.Subprocess.new(['pkill', '-f', 'tray-console-daemon'], Gio.SubprocessFlags.NONE);
-            } catch (e) {
-                // Ignore
-            }
-
-            if (Main.extensionManager && typeof Main.extensionManager.disableExtension === 'function') {
-                Main.extensionManager.disableExtension(this._extension.uuid);
-            } else {
-                this._extension.disable();
-            }
-        });
+        exitItem.connect('activate', () => this._quitApp());
         this._contextMenu.addMenuItem(exitItem);
+    }
+
+    _quitApp() {
+        if (this._contextMenu?.isOpen) {
+            this._contextMenu.close();
+        }
+        if (this.menu?.isOpen) {
+            this.menu.close();
+        }
+        this._sendIpcCommand({ cmd: 'quit' });
+        try {
+            Gio.Subprocess.new(['pkill', '-f', 'tray-console-daemon'], Gio.SubprocessFlags.NONE);
+        } catch (e) {
+            // Ignore
+        }
+
+        if (Main.extensionManager && typeof Main.extensionManager.disableExtension === 'function') {
+            Main.extensionManager.disableExtension(this._extension.uuid);
+        } else {
+            this._extension.disable();
+        }
     }
 
     _setupClickHandling() {
@@ -797,6 +816,7 @@ export const TrayPlayIndicator = GObject.registerClass({
         const candidatePaths = [
             GLib.build_filenamev([GLib.get_home_dir(), 'Рабочий_стол', 'trayplay', 'games']),
             this._extension?.dir ? GLib.build_filenamev([this._extension.dir.get_path(), '..', '..', 'games']) : null,
+            '/usr/share/trayplay/games',
             GLib.build_filenamev([GLib.get_user_data_dir(), 'trayplay', 'games']),
             GLib.build_filenamev([GLib.get_home_dir(), 'Games']),
         ];

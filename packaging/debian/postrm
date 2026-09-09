@@ -1,0 +1,24 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    remove|purge)
+        if [ -x /usr/bin/update-desktop-database ]; then
+            update-desktop-database -q /usr/share/applications || true
+        fi
+
+        if [ -x /usr/bin/gtk-update-icon-cache ]; then
+            gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
+        fi
+
+        # Update AppStream metadata cache
+        if [ -x /usr/bin/appstreamcli ]; then
+            appstreamcli refresh-cache --force >/dev/null 2>&1 || true
+        fi
+
+        # Clean up temporary runtime artifacts if any remain
+        rm -f /dev/shm/trayplay_* /tmp/trayplay.sock 2>/dev/null || true
+    ;;
+esac
+
+exit 0
