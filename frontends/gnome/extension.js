@@ -1,15 +1,13 @@
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
+import { TrayPlayApp } from './app.js';
 
 export default class TrayPlayExtension extends Extension {
-    async enable() {
+    enable() {
         try {
-            const file = this.dir.get_child('app.js');
-            const uri = `${file.get_uri()}?v=${Date.now()}`;
-            const module = await import(uri);
-            this._app = new module.TrayPlayApp(this);
+            this._app = new TrayPlayApp(this);
             this._app.enable();
         } catch (e) {
-            console.error(`[TrayPlay] Failed to load app.js: ${e}`);
+            console.error(`[TrayPlay] Failed to initialize extension: ${e}`);
         }
     }
 
