@@ -7,168 +7,112 @@
 
 ## Architecture Overview
 
-- **Core (`tray-console-daemon`)**: Headless C++ backend managing the cartridge game loop, audio and gamepad input via SDL2, IPC via Boost (Asio + Interprocess), and frame rendering into Shared Memory.
+- **Core (`tray-console-daemon`)**: Headless C++ backend managing the cartridge game loop, audio and gamepad input via SDL2, IPC via POSIX Shared Memory & UNIX Domain Sockets, and frame rendering into Shared Memory.
 - **Frontends**: Native thin clients per operating system:
   - **Linux**: GNOME (GJS/Clutter), KDE Plasma (QML), Cinnamon (CJS), XFCE (GTK3/4), Waybar (C++).
-  - **macOS**: Objective-C++ + AppKit (`NSStatusItem`, `NSPopover`).
+  - **macOS**: Swift + SwiftUI (`NSStatusItem`, `NSPopover`).
   - **Windows**: C++/WinRT + `NotifyIcon` with native Mica styling.
 
 For detailed design specs, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
 
-## Editor & Development Setup: VS Code
+## Prerequisites & Dependencies
 
-This project is designed to be developed entirely within **VS Code** across all supported platforms (Linux, macOS, and Windows).
+All dependencies are provided by system packages (no bundled `vcpkg` or `third_party/` dependencies).
 
-### Recommended VS Code Extensions
-- **[C/C++](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools)** (Microsoft)
-- **[CMake Tools](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cmake-tools)** (Microsoft)
+### Arch Linux / CachyOS / Manjaro
 
-With these extensions installed, VS Code automatically detects `CMakeLists.txt` and the bundled `vcpkg` toolchain.
+Install system development libraries from official repositories:
 
----
+```bash
+sudo pacman -S --needed base-devel cmake clang pkgconf sdl2 lua54 nlohmann-json miniz
+```
 
-## Prerequisites by Operating System
+Install `sol2` from the AUR:
 
-We use lightweight command-line toolchains and package managers across all platforms:
+```bash
+paru -S --needed sol2
+# or: yay -S --needed sol2
+```
 
-### Linux (Ubuntu / Debian)
+*(Note: `lua54` is required because `sol2` supports Lua up to 5.4, whereas Arch's default `lua` package is 5.5. For building `.rpm` packages via CPack, `rpm-build` is also required.)*
 
-Install the compiler toolchain, Autotools (required for vcpkg port builds), and development headers:
+### Ubuntu / Debian
 
 ```bash
 sudo apt update && sudo apt install -y \
     build-essential \
     cmake \
+    clang \
     git \
-    curl \
-    zip \
-    unzip \
-    tar \
     pkg-config \
-    autoconf \
-    autoconf-archive \
-    automake \
-    libtool \
-    libx11-dev \
-    libxft-dev \
-    libxext-dev \
-    libwayland-dev \
-    libxkbcommon-dev \
-    libegl1-mesa-dev
+    libsdl2-dev \
+    liblua5.4-dev \
+    nlohmann-json3-dev \
+    libminiz-dev \
+    libsol2-dev
 ```
 
-### macOS
-
-Install build tools and CMake via Homebrew (just like on Linux):
+### Fedora
 
 ```bash
-brew install cmake git pkg-config
+sudo dnf install -y \
+    gcc-c++ \
+    clang \
+    cmake \
+    git \
+    pkgconf-pkg-config \
+    SDL2-devel \
+    lua-devel \
+    json-devel \
+    miniz-devel \
+    sol2-devel
 ```
 
-### Windows (MinGW-w64)
-
-Install the GCC/G++ MinGW toolchain, CMake, and Git:
-
-- **Via MSYS2 (UCRT64)**:
-  ```bash
-  pacman -S --needed base-devel mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-cmake git
-  ```
-- **Or via Scoop**:
-  ```powershell
-  scoop install mingw cmake git
-  ```
-- **Or via [WinLibs](https://winlibs.com/)**: Download the standalone UCRT package and add its `bin/` directory to your system `PATH`.
-
----
-
-## Getting Started
-
-### 1. Clone the Repository
-
-Clone with submodules so that the bundled `vcpkg` dependency manager is initialized:
-
-```bash
-git clone --recursive https://github.com/threetwofourfive/trayplay.git
-cd trayplay
-```
-
-> *If you already cloned without `--recursive`, run:*
-> ```bash
-> git submodule update --init --recursive
-> ```
-
-### 2. Bootstrap `vcpkg` (One-time step)
-
-Build the local `vcpkg` executable:
-
-- **Linux & macOS:**
-  ```bash
-  ./vcpkg/bootstrap-vcpkg.sh
-  ```
-- **Windows (PowerShell or Command Prompt):**
-  ```cmd
-  .\vcpkg\bootstrap-vcpkg.bat
-  ```
+*(For building `.rpm` packages via CPack, also install `rpm-build`.)*
 
 ---
 
 ## Building the Project
 
-### Using VS Code
+### Using Zed
 
-1. Open the project in VS Code:
-   ```bash
-   code .
-   ```
-2. Select your compiler kit when prompted by CMake Tools:
-   - **Linux**: GCC or Clang
-   - **macOS**: GCC or Clang
-   - **Windows**: MinGW GCC
-3. Press `F7` (or click **Build** on the bottom status bar). The bundled `vcpkg` toolchain is detected automatically.
-
----
+1. Open the project in Zed.
+2. In [CMakeLists.txt](CMakeLists.txt), click the triangle next to `project(TrayConsole ...)` and choose **`CMake: Configure Debug`** (or `Release`).
+3. Click the triangle next to `add_executable(tray-console-daemon)` and select **`CMake: Build tray-console-daemon`**.
+4. Run the daemon using **`CMake: Run tray-console-daemon`**.
+5. Optional targets available via gutter triangles in [CMakeLists.txt](CMakeLists.txt):
+   - `install-gnome-extension` — installs the GNOME Shell extension into `~/.local/share/gnome-shell/extensions/`.
+   - `package-tar` — builds a portable `.tar.gz` archive via CPack.
+   - `package-deb` — builds a `.deb` package via CPack.
+   - `package-rpm` — builds an `.rpm` package via CPack (requires `rpmbuild`).
 
 ### Using the Command Line
 
-The root `CMakeLists.txt` automatically detects and uses the bundled `vcpkg` toolchain file (`vcpkg/scripts/buildsystems/vcpkg.cmake`).
+```bash
+# Configure
+cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
 
-#### Linux & macOS
+# Build
+cmake --build build --parallel
+
+# Install GNOME Shell extension locally (optional, Linux/GNOME)
+cmake --build build --target install-gnome-extension
+
+# Run
+./build/tray-console-daemon
+```
+
+### Packaging
 
 ```bash
-# Configure (bundled vcpkg toolchain is auto-detected)
-cmake -B build -S .
+# Portable archive (.tar.gz)
+cmake --build build --target package-tar
 
-# Build
-cmake --build build
+# Debian / Ubuntu package (.deb)
+cmake --build build --target package-deb
+
+# Fedora / RHEL package (.rpm, requires rpmbuild)
+cmake --build build --target package-rpm
 ```
-
-#### Windows (with MinGW)
-
-```cmd
-# Configure with MinGW Makefiles or Ninja
-cmake -B build -S . -G "MinGW Makefiles"
-
-# Build
-cmake --build build
-```
-
----
-
-## Troubleshooting & FAQ
-
-### 1. Missing Autotools on Linux (`libxcrypt` or `vcpkg-make` failure)
-- **Symptom:** `vcpkg` fails with `libxcrypt currently requires autoconf autoconf-archive automake libtoolize`.
-- **Fix:** Run:
-  ```bash
-  sudo apt install -y autoconf autoconf-archive automake libtool
-  ```
-
-### 2. Python virtual environment error (`libsystemd` / `ensurepip`)
-- **Symptom:** `The virtual environment was not created successfully because ensurepip is not available`.
-- **Reason:** SDL2 by default enables D-Bus on Linux, which pulls in `libsystemd` and requires `python3-venv` from source.
-- **Fix:** In `vcpkg.json`, `sdl2` is configured with `"default-features": false` and explicit `["x11", "wayland"]` features. This ensures the headless daemon does not compile unnecessary desktop service daemons.
-
-### 3. Stalled or interrupted downloads
-- If an archive download stalls without a timeout, you can cancel the process (`Ctrl+C`), download the required tarball directly into `vcpkg/downloads/`, and re-run the build command. `vcpkg` will verify the file hash and continue.
