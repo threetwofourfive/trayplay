@@ -16,24 +16,28 @@ GameLoop::~GameLoop() {
 bool GameLoop::load_cartridge(const Cartridge& cartridge) {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_should_exit.store(false);
+    m_vm.reset_input();
+
+    auto fail_crashed = [this](const std::string& err) {
+        m_last_error = err;
+        m_state.store(GameState::CRASHED);
+        if (m_on_frame) {
+            m_on_frame(m_framebuffer, m_telemetry);
+        }
+        return false;
+    };
 
     if (!cartridge.is_valid()) {
-        m_last_error = "Invalid cartridge code";
-        m_state.store(GameState::CRASHED);
-        return false;
+        return fail_crashed("Invalid cartridge code");
     }
 
     if (!m_vm.load_script(cartridge.get_code())) {
-        m_last_error = m_vm.get_last_error();
-        m_state.store(GameState::CRASHED);
-        return false;
+        return fail_crashed(m_vm.get_last_error());
     }
 
     m_vm.init();
     if (m_vm.has_error()) {
-        m_last_error = m_vm.get_last_error();
-        m_state.store(GameState::CRASHED);
-        return false;
+        return fail_crashed(m_vm.get_last_error());
     }
 
     m_accumulator = 0.0;
@@ -47,6 +51,7 @@ void GameLoop::unload_cartridge() {
     if (auto* a = m_vm.get_audio()) {
         a->stop();
     }
+    m_vm.reset_input();
     m_framebuffer.clear(0x000000FF);
     m_telemetry.fps = 0.0;
     m_state.store(GameState::STOPPED);
@@ -86,23 +91,28 @@ void GameLoop::stop() {
 }
 
 void GameLoop::step(double dt) {
+    std::lock_guard<std::mutex> lock(m_mutex);
     if (m_state.load() != GameState::RUNNING && m_state.load() != GameState::PAUSED) {
         return;
     }
 
-    m_vm.update(dt);
-    if (m_vm.has_error()) {
-        std::lock_guard<std::mutex> lock(m_mutex);
+    auto fail_step = [this]() {
         m_last_error = m_vm.get_last_error();
         m_state.store(GameState::CRASHED);
+        if (m_on_frame) {
+            m_on_frame(m_framebuffer, m_telemetry);
+        }
+    };
+
+    m_vm.update(dt);
+    if (m_vm.has_error()) {
+        fail_step();
         return;
     }
 
     m_vm.draw();
     if (m_vm.has_error()) {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        m_last_error = m_vm.get_last_error();
-        m_state.store(GameState::CRASHED);
+        fail_step();
         return;
     }
 
@@ -112,9 +122,18 @@ void GameLoop::step(double dt) {
 }
 
 void GameLoop::tick() {
+    std::lock_guard<std::mutex> lock(m_mutex);
     if (m_state.load() != GameState::RUNNING) {
         return;
     }
+
+    auto fail_tick = [this]() {
+        m_last_error = m_vm.get_last_error();
+        m_state.store(GameState::CRASHED);
+        if (m_on_frame) {
+            m_on_frame(m_framebuffer, m_telemetry);
+        }
+    };
 
     auto now = std::chrono::steady_clock::now();
     double frame_time = std::chrono::duration<double>(now - m_last_time).count();
@@ -129,9 +148,7 @@ void GameLoop::tick() {
     while (m_accumulator >= TARGET_DT) {
         m_vm.update(TARGET_DT);
         if (m_vm.has_error()) {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            m_last_error = m_vm.get_last_error();
-            m_state.store(GameState::CRASHED);
+            fail_tick();
             return;
         }
         m_accumulator -= TARGET_DT;
@@ -139,9 +156,7 @@ void GameLoop::tick() {
 
     m_vm.draw();
     if (m_vm.has_error()) {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        m_last_error = m_vm.get_last_error();
-        m_state.store(GameState::CRASHED);
+        fail_tick();
         return;
     }
 

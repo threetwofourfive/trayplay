@@ -9,7 +9,7 @@
 
 - **Core (`tray-console-daemon`)**: Headless C++ backend managing the cartridge game loop, audio and gamepad input via SDL2, IPC via POSIX Shared Memory & UNIX Domain Sockets, and frame rendering into Shared Memory.
 - **Frontends**: Native thin clients per operating system:
-  - **Linux**: GNOME (GJS/Clutter), KDE Plasma (QML), Cinnamon (CJS), XFCE (GTK3/4), Waybar (C++).
+  - **Linux**: GNOME (GJS/Clutter), KDE Plasma (QML), Cinnamon (CJS), XFCE (C++/GTK3/SNI + `libxfce4panel-2.0`), Waybar (C++).
   - **macOS**: Swift + SwiftUI (`NSStatusItem`, `NSPopover`).
   - **Windows**: C++/WinRT + `NotifyIcon` with native Mica styling.
 
@@ -27,6 +27,12 @@ Install system development libraries from official repositories:
 
 ```bash
 sudo pacman -S --needed base-devel cmake clang pkgconf sdl2 lua54 nlohmann-json miniz
+```
+
+Optional dependencies for the native XFCE frontend (`trayplay-xfce` + panel plugin):
+
+```bash
+sudo pacman -S --needed gtk3 libdbusmenu-glib gtk-layer-shell xfce4-panel
 ```
 
 Install `sol2` from the AUR:
@@ -54,6 +60,12 @@ sudo apt update && sudo apt install -y \
     libsol2-dev
 ```
 
+Optional dependencies for the native XFCE frontend:
+
+```bash
+sudo apt install -y libgtk-3-dev libdbusmenu-glib-dev libgtk-layer-shell-dev libxfce4panel-2.0-dev
+```
+
 ### Fedora
 
 ```bash
@@ -68,6 +80,12 @@ sudo dnf install -y \
     json-devel \
     miniz-devel \
     sol2-devel
+```
+
+Optional dependencies for the native XFCE frontend:
+
+```bash
+sudo dnf install -y gtk3-devel libdbusmenu-devel gtk-layer-shell-devel xfce4-panel-devel
 ```
 
 *(For building `.rpm` packages via CPack, also install `rpm-build`.)*
@@ -91,8 +109,8 @@ sudo dnf install -y \
 ### Using the Command Line
 
 ```bash
-# Configure
-cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+# Configure (defaults to Release with -O3 + LTO; pass -DENABLE_NATIVE_ARCH=ON for local CPU -march=native)
+cmake -B build -S .
 
 # Build
 cmake --build build --parallel
@@ -100,9 +118,32 @@ cmake --build build --parallel
 # Install GNOME Shell extension locally (optional, Linux/GNOME)
 cmake --build build --target install-gnome-extension
 
-# Run
-./build/tray-console-daemon
+# Run (GNOME / XFCE via unified launcher or direct frontend)
+./build/trayplay-xfce          # XFCE system tray frontend (waits in tray; starts daemon on click)
+./build/trayplay-xfce --show   # Start XFCE tray frontend and open the screen immediately
+./build/tray-console-daemon    # Standalone core daemon
 ```
+
+### CMake Options
+
+| Option | Default | Description |
+|---|---|---|
+| `CMAKE_BUILD_TYPE` | `Release` | Build configuration (`Debug`, `Release`, `RelWithDebInfo`, `MinSizeRel`) |
+| `BUILD_CORE` | `ON` | Build `tray-console-daemon` |
+| `BUILD_FRONTEND_GNOME` | `ON` | Copy/install GNOME Shell extension |
+| `BUILD_FRONTEND_XFCE` | `ON` | Build native XFCE tray client (`trayplay-xfce`) |
+| `BUILD_FRONTEND_XFCE_PANEL` | `ON` | Build optional `XfcePanelPlugin` (`libtrayplay.so`) |
+| `ENABLE_LTO` | `ON` | Enable Link-Time Optimization (IPO/LTO) on non-Debug builds |
+| `ENABLE_NATIVE_ARCH` | `OFF` | Add `-march=native` (disable for portable `.deb`/`.rpm`/`.tar.gz` packages) |
+
+---
+
+## Controls & XFCE Usage Notes
+
+- **Game Controls:** `W`/`A`/`S`/`D` (Latin & Cyrillic layouts) or Arrow keys (`up`/`left`/`down`/`right`), `Space` (`a`), `Enter` (`start`), `Esc` (`select` / close explorer / hide idle screen), `M` (`m` audio mute toggle).
+- **Supported Cartridges:** `.gpak` bundles, standalone `.lua` scripts, and unpacked project folders containing `game.json`.
+- **XFCE Tray vs Panel Plugin:** Launching `trayplay-xfce` (or `/usr/bin/trayplay` under XFCE) places the icon inside the existing XFCE Status Tray (`systray`) next to Telegram/Discord/Bluetooth without requiring panel edits, and removes both icon and daemon on **Quit**. When installed system-wide (`/usr/lib/xfce4/panel/plugins/libtrayplay.so`), **TrayPlay Microconsole** is also available in *Panel → Add New Items*.
+- **Environment Overrides:** `TRAYPLAY_DAEMON` (explicit path to `tray-console-daemon`), `TRAYPLAY_GAMES_DIR` (default cartridge browser folder).
 
 ### Packaging
 

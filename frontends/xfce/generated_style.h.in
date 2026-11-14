@@ -1,0 +1,9 @@
+#pragma once
+
+namespace trayplay::xfce {
+
+inline constexpr const char* TRAYPLAY_XFCE_STYLE_CSS = R"TRAYPLAY_CSS(
+@TRAYPLAY_XFCE_CSS_CONTENT@
+)TRAYPLAY_CSS";
+
+} // namespace trayplay::xfce

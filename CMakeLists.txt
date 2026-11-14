@@ -11,9 +11,36 @@ endif()
 
 project(TrayConsole LANGUAGES CXX)
 
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type (Debug, Release, RelWithDebInfo, MinSizeRel)" FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+option(ENABLE_LTO "Enable Link-Time Optimization (IPO/LTO) in Release/RelWithDebInfo builds" ON)
+option(ENABLE_NATIVE_ARCH "Enable -march=native optimizations (not portable across CPUs)" OFF)
+
+if(ENABLE_LTO AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT _ipo_supported OUTPUT _ipo_error)
+    if(_ipo_supported)
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO ON)
+    else()
+        message(STATUS "LTO/IPO not supported cleanly: ${_ipo_error}")
+    endif()
+endif()
+
+if(ENABLE_NATIVE_ARCH)
+    include(CheckCXXCompilerFlag)
+    check_cxx_compiler_flag("-march=native" _has_march_native)
+    if(_has_march_native)
+        add_compile_options(-march=native)
+    endif()
+endif()
 
 # ------------------------------------------------------------------------------
 # Dependencies
@@ -159,7 +186,8 @@ elseif(UNIX AND NOT APPLE)
     option(BUILD_FRONTEND_GNOME "Build GNOME extension frontend" ON)
     option(BUILD_FRONTEND_KDE "Build KDE Plasma frontend" OFF)
     option(BUILD_FRONTEND_CINNAMON "Build Cinnamon frontend" OFF)
-    option(BUILD_FRONTEND_XFCE "Build XFCE frontend" OFF)
+    option(BUILD_FRONTEND_XFCE "Build XFCE frontend" ON)
+    option(BUILD_FRONTEND_XFCE_PANEL "Build optional native XFCE4 panel plugin (.so)" ON)
     option(BUILD_FRONTEND_WAYBAR "Build Waybar frontend" OFF)
 
     # Helper macro for copying frontend static files
@@ -195,16 +223,93 @@ elseif(UNIX AND NOT APPLE)
         find_package(PkgConfig QUIET)
         if(PKG_CONFIG_FOUND)
             pkg_check_modules(GTK3 QUIET gtk+-3.0)
+            pkg_check_modules(DBUSMENU_GLIB QUIET dbusmenu-glib-0.4)
+            pkg_check_modules(GTK_LAYER_SHELL QUIET gtk-layer-shell-0)
+            if(BUILD_FRONTEND_XFCE_PANEL)
+                pkg_check_modules(LIBXFCE4PANEL QUIET libxfce4panel-2.0)
+            endif()
         endif()
 
-        add_library(frontend-xfce SHARED frontends/xfce/main.cpp)
-        set_target_properties(frontend-xfce PROPERTIES PREFIX "")
-
         if(GTK3_FOUND)
-            target_include_directories(frontend-xfce PRIVATE ${GTK3_INCLUDE_DIRS})
-            target_link_libraries(frontend-xfce PRIVATE ${GTK3_LIBRARIES})
+            set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+                "${CMAKE_CURRENT_SOURCE_DIR}/frontends/xfce/style.css"
+                "${CMAKE_CURRENT_SOURCE_DIR}/frontends/xfce/generated_style.h.in"
+            )
+            file(READ "${CMAKE_CURRENT_SOURCE_DIR}/frontends/xfce/style.css" TRAYPLAY_XFCE_CSS_CONTENT)
+            configure_file(
+                "${CMAKE_CURRENT_SOURCE_DIR}/frontends/xfce/generated_style.h.in"
+                "${CMAKE_CURRENT_BINARY_DIR}/generated/xfce/generated_style.h"
+                @ONLY
+            )
+
+            add_library(trayplay_xfce_core STATIC
+                frontends/xfce/ipc_client.cpp
+                frontends/xfce/settings.cpp
+                frontends/xfce/cartridge_browser.cpp
+                frontends/xfce/trayplay_view.cpp
+                frontends/xfce/popup_window.cpp
+                frontends/xfce/status_notifier.cpp
+            )
+            set_target_properties(trayplay_xfce_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+            target_include_directories(trayplay_xfce_core PUBLIC
+                "${CMAKE_CURRENT_SOURCE_DIR}/frontends/xfce"
+                "${CMAKE_CURRENT_BINARY_DIR}/generated/xfce"
+                ${GTK3_INCLUDE_DIRS}
+            )
+            target_link_libraries(trayplay_xfce_core PUBLIC
+                nlohmann_json::nlohmann_json
+                ${GTK3_LINK_LIBRARIES}
+            )
+            target_compile_options(trayplay_xfce_core PUBLIC ${GTK3_CFLAGS_OTHER})
+
+            if(DBUSMENU_GLIB_FOUND)
+                target_compile_definitions(trayplay_xfce_core PUBLIC HAVE_DBUSMENU=1)
+                target_include_directories(trayplay_xfce_core PUBLIC ${DBUSMENU_GLIB_INCLUDE_DIRS})
+                target_link_libraries(trayplay_xfce_core PUBLIC ${DBUSMENU_GLIB_LINK_LIBRARIES})
+            endif()
+
+            if(GTK_LAYER_SHELL_FOUND)
+                target_compile_definitions(trayplay_xfce_core PUBLIC HAVE_GTK_LAYER_SHELL=1)
+                target_include_directories(trayplay_xfce_core PUBLIC ${GTK_LAYER_SHELL_INCLUDE_DIRS})
+                # gtk-layer-shell must be linked before gtk-3/wayland libraries
+                target_link_libraries(trayplay_xfce_core PUBLIC ${GTK_LAYER_SHELL_LINK_LIBRARIES})
+            endif()
+
+            add_executable(trayplay-xfce
+                frontends/xfce/main_app.cpp
+            )
+            if(GTK_LAYER_SHELL_FOUND)
+                target_link_libraries(trayplay-xfce PRIVATE ${GTK_LAYER_SHELL_LINK_LIBRARIES})
+            endif()
+            target_link_libraries(trayplay-xfce PRIVATE trayplay_xfce_core)
+
+            if(TARGET copy-games)
+                add_dependencies(trayplay-xfce copy-games)
+            endif()
+
+            if(BUILD_FRONTEND_XFCE_PANEL AND LIBXFCE4PANEL_FOUND)
+                add_library(trayplay-xfce-panel SHARED
+                    frontends/xfce/panel_plugin.cpp
+                )
+                set_target_properties(trayplay-xfce-panel PROPERTIES
+                    OUTPUT_NAME "trayplay"
+                    PREFIX "lib"
+                )
+                target_include_directories(trayplay-xfce-panel PRIVATE ${LIBXFCE4PANEL_INCLUDE_DIRS})
+                target_link_libraries(trayplay-xfce-panel PRIVATE
+                    trayplay_xfce_core
+                    ${LIBXFCE4PANEL_LINK_LIBRARIES}
+                )
+                target_compile_options(trayplay-xfce-panel PRIVATE ${LIBXFCE4PANEL_CFLAGS_OTHER})
+
+                configure_file(
+                    "${CMAKE_CURRENT_SOURCE_DIR}/frontends/xfce/trayplay.desktop.in"
+                    "${CMAKE_CURRENT_BINARY_DIR}/frontends/xfce/trayplay.desktop"
+                    COPYONLY
+                )
+            endif()
         else()
-            message(WARNING "GTK3 not found, building frontend-xfce without actual GTK support for skeleton.")
+            message(WARNING "GTK3 (gtk+-3.0) not found; skipping XFCE frontend targets.")
         endif()
     endif()
 
@@ -232,6 +337,25 @@ elseif(UNIX AND NOT APPLE)
         install(DIRECTORY frontends/gnome/
             DESTINATION ${CMAKE_INSTALL_DATADIR}/gnome-shell/extensions/trayplay@threetwofourfive.github.io
             PATTERN ".*" EXCLUDE
+        )
+    endif()
+
+    if(BUILD_FRONTEND_XFCE AND TARGET trayplay-xfce)
+        install(TARGETS trayplay-xfce RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    endif()
+
+    if(BUILD_FRONTEND_XFCE AND TARGET trayplay-xfce-panel)
+        pkg_get_variable(XFCE4PANEL_LIBDIR libxfce4panel-2.0 libdir)
+        if(XFCE4PANEL_LIBDIR AND XFCE4PANEL_LIBDIR MATCHES "^/usr/")
+            file(RELATIVE_PATH XFCE4PANEL_REL_LIBDIR "/usr" "${XFCE4PANEL_LIBDIR}")
+        else()
+            set(XFCE4PANEL_REL_LIBDIR "${CMAKE_INSTALL_LIBDIR}")
+        endif()
+        install(TARGETS trayplay-xfce-panel
+            LIBRARY DESTINATION "${XFCE4PANEL_REL_LIBDIR}/xfce4/panel/plugins"
+        )
+        install(FILES "${CMAKE_CURRENT_BINARY_DIR}/frontends/xfce/trayplay.desktop"
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/xfce4/panel/plugins"
         )
     endif()
 

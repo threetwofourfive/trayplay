@@ -51,18 +51,41 @@ case "$CURRENT_DE" in
             fi
         fi
         ;;
-    *XFCE*)
-        # Future XFCE panel plugin launcher / fallback
-        if [ -x /usr/bin/trayplay-xfce ]; then
-            exec /usr/bin/trayplay-xfce
+    *XFCE*|*xfce*)
+        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        XFCE_BIN=""
+        for candidate in \
+            "$SCRIPT_DIR/trayplay-xfce" \
+            "$(command -v trayplay-xfce 2>/dev/null || true)" \
+            "/usr/bin/trayplay-xfce" \
+            "/usr/local/bin/trayplay-xfce"
+        do
+            if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+                XFCE_BIN="$candidate"
+                break
+            fi
+        done
+
+        if [ -n "$XFCE_BIN" ]; then
+            exec "$XFCE_BIN" "$@"
+        elif command -v gdbus >/dev/null 2>&1 && gdbus call --session \
+                --dest org.xfce.Panel \
+                --object-path /org/xfce/Panel \
+                --method org.xfce.Panel.PluginEvent \
+                trayplay popup "<true>" >/dev/null 2>&1; then
+            exit 0
         else
             /usr/bin/tray-console-daemon &
         fi
         ;;
     *)
-        # Generic fallback: spawn daemon
+        # Generic fallback: use GNOME extension if present, otherwise XFCE/SNI tray client or daemon
         if command -v gnome-extensions >/dev/null 2>&1 && gnome-extensions list | grep -q "^${UUID}$"; then
             gnome-extensions enable "${UUID}"
+        elif command -v trayplay-xfce >/dev/null 2>&1; then
+            exec trayplay-xfce "$@"
+        elif [ -x /usr/bin/trayplay-xfce ]; then
+            exec /usr/bin/trayplay-xfce "$@"
         else
             /usr/bin/tray-console-daemon &
         fi

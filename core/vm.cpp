@@ -290,10 +290,12 @@ void VM::draw() {
 }
 
 void VM::set_button(const std::string& name, bool pressed) {
+    std::lock_guard<std::mutex> lock(m_input_mutex);
     m_buttons[name] = pressed;
 }
 
 bool VM::get_button(const std::string& name) const {
+    std::lock_guard<std::mutex> lock(m_input_mutex);
     auto it = m_buttons.find(name);
     if (it != m_buttons.end()) {
         return it->second;
@@ -302,6 +304,7 @@ bool VM::get_button(const std::string& name) const {
 }
 
 void VM::reset_input() {
+    std::lock_guard<std::mutex> lock(m_input_mutex);
     m_buttons.clear();
 }
 

@@ -5,6 +5,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include "framebuffer.h"
 
 // Forward declaration of sol::state
@@ -80,6 +81,7 @@ private:
     Audio* m_audio{nullptr};
     std::unique_ptr<sol::state> m_lua;
     std::unordered_map<std::string, bool> m_buttons;
+    mutable std::mutex m_input_mutex;
     std::string m_last_error;
 
     bool m_has_init{false};

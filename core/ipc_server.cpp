@@ -56,7 +56,7 @@ bool IpcServer::start() {
     // Set socket permissions for non-root user access
     ::chmod(m_socket_path.c_str(), 0666);
 
-    if (::listen(m_server_fd, 5) < 0) {
+    if (::listen(m_server_fd, 32) < 0) {
         std::cerr << "[IPC] Failed to listen on socket: " << strerror(errno) << std::endl;
         ::close(m_server_fd);
         m_server_fd = -1;
@@ -143,7 +143,12 @@ void IpcServer::set_cartridge_title(const std::string& title) {
 }
 
 void IpcServer::publish_frame(const Framebuffer& fb, const GameTelemetry& telemetry) {
+    std::lock_guard<std::mutex> shm_lock(m_shm_mutex);
     if (!m_shm_ptr) return;
+
+    // Write pixels and metadata before advancing frame_index so lock-free readers do not observe torn frames
+    uint8_t* pixel_dest = static_cast<uint8_t*>(m_shm_ptr) + sizeof(SharedFrameHeader);
+    std::memcpy(pixel_dest, fb.data(), Framebuffer::BUFFER_SIZE_BYTES);
 
     auto* header = static_cast<SharedFrameHeader*>(m_shm_ptr);
     header->magic = 0x54524159;
@@ -151,17 +156,18 @@ void IpcServer::publish_frame(const Framebuffer& fb, const GameTelemetry& teleme
     header->width = Framebuffer::WIDTH;
     header->height = Framebuffer::HEIGHT;
     header->pitch = Framebuffer::WIDTH * sizeof(uint32_t);
-    header->frame_index = ++m_frame_counter;
     header->state = static_cast<uint32_t>(m_game_loop.get_state());
     header->fps = static_cast<float>(telemetry.fps);
 
     {
         std::lock_guard<std::mutex> lock(m_title_mutex);
+        std::memset(header->title, 0, sizeof(header->title));
         std::strncpy(header->title, m_current_title.c_str(), sizeof(header->title) - 1);
     }
 
-    uint8_t* pixel_dest = static_cast<uint8_t*>(m_shm_ptr) + sizeof(SharedFrameHeader);
-    std::memcpy(pixel_dest, fb.data(), Framebuffer::BUFFER_SIZE_BYTES);
+    std::atomic_thread_fence(std::memory_order_release);
+    header->frame_index = ++m_frame_counter;
+    std::atomic_signal_fence(std::memory_order_release);
 }
 
 void IpcServer::socket_server_thread() {
@@ -184,6 +190,9 @@ void IpcServer::socket_server_thread() {
 }
 
 void IpcServer::handle_client(int client_fd) {
+    struct timeval tv { 0, 200000 }; // 200ms receive timeout prevents stalled clients blocking socket thread
+    ::setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
     char buffer[4096];
     ssize_t bytes_read = ::read(client_fd, buffer, sizeof(buffer) - 1);
     if (bytes_read <= 0) return;
@@ -215,13 +224,14 @@ std::string IpcServer::process_command(const std::string& json_str) {
                 response["status"] = "error";
                 response["message"] = error;
             } else {
+                set_cartridge_title(cart_opt->get_metadata().title);
                 if (m_game_loop.load_cartridge(*cart_opt)) {
-                    set_cartridge_title(cart_opt->get_metadata().title);
                     response["status"] = "ok";
                     response["title"] = cart_opt->get_metadata().title;
                     response["author"] = cart_opt->get_metadata().author;
                     response["version"] = cart_opt->get_metadata().version;
                 } else {
+                    set_cartridge_title("No Cartridge");
                     response["status"] = "error";
                     response["message"] = m_game_loop.get_last_error();
                 }

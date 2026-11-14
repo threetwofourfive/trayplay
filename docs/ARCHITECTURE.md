@@ -24,7 +24,7 @@ Thin, 100% native clients tailored to specific operating systems and desktop env
 - **GNOME:** GJS (JavaScript) + Clutter
 - **KDE Plasma:** QML + JavaScript (or C++ Qt plugin)
 - **Cinnamon:** CJS (JavaScript)
-- **XFCE:** C/C++ + GTK3/GTK4
+- **XFCE:** C++17 + GTK3 + Cairo (`StatusNotifierItem` / `DBusMenu` tray client + optional `libxfce4panel-2.0` plugin)
 - **Waybar:** C++
 
 ### macOS
@@ -39,7 +39,8 @@ Thin, 100% native clients tailored to specific operating systems and desktop env
 
 ## Build & Packaging Notes (Linux)
 
-- **Compiler & Dependencies:** `CMakeLists.txt` defaults to `clang++` if available and resolves all dependencies (`SDL2`, `Lua 5.4`, `sol2`, `nlohmann_json`, `miniz`) from system packages (no bundled `vcpkg` or `third_party/`).
+- **Compiler & Dependencies:** `CMakeLists.txt` prefers `clang++` if available, defaults to `Release` (`-O3` + optional `ENABLE_LTO=ON`, and optional `ENABLE_NATIVE_ARCH=OFF` for `-march=native`) when `CMAKE_BUILD_TYPE` is unset, and resolves all dependencies (`SDL2`, `Lua 5.4`, `sol2`, `nlohmann_json`, `miniz`, plus optional `GTK3` / `dbusmenu-glib-0.4` / `gtk-layer-shell-0` / `libxfce4panel-2.0`) from system packages (no bundled `vcpkg` or `third_party/`).
+- **On-Demand Daemon Lifecycle:** Thin clients (`trayplay` / `trayplay-xfce`) reside quietly in the panel/tray on launch and spawn `tray-console-daemon` on demand when the console popover is opened, shutting the daemon down cleanly on `Quit`.
 - **Portable `.tar.gz` (`package-tar`):** Built via `cpack -G TGZ` without external packaging tools.
 - **Debian `.deb` (`package-deb`):** Uses `cpack -G DEB` with `CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON`. When built on non-Debian distributions (e.g. Arch/CachyOS) without `dpkg` in `PATH`, CPack emits a warning, falls back to the `i386` architecture label, and omits shared-library `Depends` metadata. Release `.deb` packages should be built on Debian/Ubuntu or in an environment with `dpkg` installed.
 - **Fedora/RHEL `.rpm` (`package-rpm`):** Uses `cpack -G RPM` and requires `rpmbuild` (`rpm-build`).
@@ -51,3 +52,4 @@ Thin, 100% native clients tailored to specific operating systems and desktop env
 For deep technical breakdowns of each subsystem:
 - [Core Engine Architecture & Technical Specification](CORE_ENGINE.md)
 - [GNOME Shell Frontend Architecture & Implementation](GNOME_FRONTEND.md)
+- [XFCE Frontend Architecture & Implementation](XFCE_FRONTEND.md)

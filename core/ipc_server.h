@@ -75,6 +75,7 @@ private:
     uint64_t m_frame_counter{0};
     std::string m_current_title{"No Cartridge"};
     std::mutex m_title_mutex;
+    std::mutex m_shm_mutex;
 };
 
 } // namespace trayplay

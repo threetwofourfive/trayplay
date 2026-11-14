@@ -9,7 +9,7 @@ This document provides a comprehensive technical breakdown of the C++ Core subsy
 TrayPlay is architected around the **Headless Core + Thin Native Client** pattern. Rather than bundling monolithic frameworks (such as Electron or heavy game engines), the computing engine is decoupled from the user interface:
 
 - **The Core Daemon (`tray-console-daemon`)**: A pure C++17 background process responsible for parsing cartridges, executing sandboxed game code, calculating physics, maintaining a fixed 60 FPS loop, and rendering pixels into a shared memory buffer.
-- **The Native Frontends (Clients)**: Lightweight, platform-native overlays (GNOME Shell GJS extension, macOS Swift/SwiftUI menu bar agent, Windows C++/WinRT tray icon) that display the framebuffer and capture user input.
+- **The Native Frontends (Clients)**: Lightweight, platform-native overlays (GNOME Shell GJS extension, XFCE C++/GTK3 SNI tray app & panel plugin, macOS Swift/SwiftUI menu bar agent, Windows C++/WinRT tray icon) that display the framebuffer and capture user input.
 
 This separation guarantees:
 1. **100% Cross-Platform Code Reuse**: Physics, scripting, cartridge loading, and rendering logic are written once in C++ and compiled identically across Linux, macOS, and Windows.
@@ -27,7 +27,7 @@ core/
 ├── framebuffer.h / .cpp    # Virtual 320x180 RGBA32 video memory and 2D drawing primitives
 ├── font.h / .cpp           # 5x7 retro ASCII bitmap font and scaled text rasterizer
 ├── audio.h / .cpp          # 4-channel chiptune synthesizer and SDL2 audio callback pipeline
-├── vm.h / .cpp             # Sandboxed Lua 5.5 VM with Sol2 C++ bindings and fantasy console API
+├── vm.h / .cpp             # Sandboxed Lua 5.4 VM with Sol2 C++ bindings and fantasy console API
 ├── cartridge.h / .cpp      # Cartridge package loader (.gpak ZIP via miniz, raw .lua, directories)
 ├── game_loop.h / .cpp      # Deterministic 60 FPS fixed-timestep loop, state machine, and telemetry
 ├── ipc_server.h / .cpp     # Zero-copy POSIX Shared Memory publisher and Unix Domain Socket server
@@ -52,7 +52,7 @@ Instead of requiring complex hardware rendering pipelines (DirectX, Metal, Vulka
 
 ### 3.2. Scripting Virtual Machine & Sandbox (`VM`)
 
-The game scripting environment is powered by **Lua 5.5** integrated via the header-only **Sol2** library:
+The game scripting environment is powered by **Lua 5.4** integrated via the header-only **Sol2** library:
 
 #### Security & Sandboxing
 Untrusted cartridges downloaded from the web must not compromise the host system. The VM opens only safe standard libraries (`base`, `math`, `string`, `table`). Potentially destructive libraries—such as `io`, `os`, and `package`—are deliberately omitted, preventing cartridges from accessing the filesystem or executing shell commands.
@@ -63,7 +63,7 @@ The VM exposes classic microconsole functions with floating-point coordinate tol
 - **Typography**: `text(str, x, y, [col], [scale])`, `print(str, [x], [y], [col], [scale])`, `text_width(str, [scale])`.
 - **Chiptune Audio**: `beep([freq], [duration_ms], [vol], [wave])`, `sfx(preset_name)`, `tone(ch, freq, duration_ms, [vol], [wave], [sweep])`, `stop_audio([ch])`.
 - **Palette**: Built-in 16-color fantasy console palette (indices `0`–`15`), with seamless fallback to custom 32-bit `rgba(r, g, b, a)` colors.
-- **Input**: `btn(name)` queries directional buttons (`up`, `down`, `left`, `right`, `a`, `b`, `start`, `select`).
+- **Input**: `btn(name)` queries controller/keyboard inputs (`up`, `down`, `left`, `right`, `w`, `a`, `s`, `b`, `start`, `select`, `m`).
 - **Lifecycle Hooks**: Cartridges implement standard callbacks:
   - `init()`: Called once upon cartridge load.
   - `update(dt)`: Called 60 times per second for game logic.
@@ -156,10 +156,10 @@ To stream 60 FPS uncompressed video to native desktop frontends without IPC bott
 │ (/dev/shm/trayplay_*)       │   │                      │
 │ [Header] + [320x180x4 RGBA] │   │                      │
 └─────────┬───────────────────┘   └───────────▲──────────┘
-          │ (GLib.MappedFile)                 │
+          │ (GLib.MappedFile / mmap)          │
 ┌─────────▼───────────────────────────────────┴──────────┐
 │             Native Desktop Frontend                    │
-│             (GNOME Shell / macOS / Windows)            │
+│        (GNOME Shell / XFCE / macOS / Windows)          │
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -183,7 +183,7 @@ struct SharedFrameHeader {
 #pragma pack(pop)
 ```
 
-Directly following the 100-byte header is the raw 230,400-byte RGBA32 pixel buffer. Frontend clients map this file once using memory-mapped I/O (`GLib.MappedFile` in GJS, `mmap` / POSIX API in Swift, `MapViewOfFile` in Windows), eliminating all IPC serialization and network copying overhead.
+Directly following the 100-byte header is the raw 230,400-byte RGBA32 pixel buffer. Frontend clients map this file once using memory-mapped I/O (`GLib.MappedFile` in GJS, `mmap` / POSIX API in C++ XFCE and Swift, `MapViewOfFile` in Windows), eliminating all IPC serialization and network copying overhead. `IpcServer::publish_frame()` writes pixels and header metadata before issuing an `std::atomic_thread_fence(std::memory_order_release)` and advancing `frame_index`, preventing lock-free readers from observing partially written frames; thread-safety between the 60 FPS loop thread and socket command thread is enforced via `GameLoop`, `VM::m_input_mutex`, and `IpcServer::m_shm_mutex`.
 
 ### 4.2. Command Stream: Unix Domain Socket
 

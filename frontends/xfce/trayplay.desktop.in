@@ -1,0 +1,10 @@
+[Xfce Panel]
+Type=X-XFCE-PanelPlugin
+Encoding=UTF-8
+Name=TrayPlay Microconsole
+Comment=Virtual microconsole in the XFCE panel
+Icon=trayplay
+X-XFCE-Module=trayplay
+X-XFCE-Internal=false
+X-XFCE-Unique=true
+X-XFCE-API=2.0
